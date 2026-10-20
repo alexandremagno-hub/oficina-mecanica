@@ -22,6 +22,7 @@ def aplicar_estilos():
     estilo.configure("Titulo.TLabel", font=(FONTE, 16, "bold"))
     estilo.configure("Subtitulo.TLabel", foreground=COR_TEXTO_SUAVE)
     estilo.configure("TEntry", padding=5)
+    estilo.configure("Dica.TEntry", foreground=COR_TEXTO_SUAVE)
     estilo.configure("TButton", font=(FONTE, 10), padding=(12, 6))
     estilo.configure(
         "Primario.TButton", background=COR_DESTAQUE, foreground="#FFFFFF", bordercolor=COR_DESTAQUE

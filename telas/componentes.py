@@ -36,7 +36,7 @@ def formatar_data(data):
 # Tabela com rolagem que lista os pedidos; clicar no cabeçalho ordena pela coluna
 class TabelaPedidos(ttk.Frame):
     colunas = [
-        ("id", "Nº", 50),
+        ("id", "Nº OS", 60),
         ("cpf", "CPF", 115),
         ("nome", "Cliente", 140),
         ("veiculo", "Veículo", 110),
@@ -135,6 +135,33 @@ class TabelaPedidos(ttk.Frame):
         if not selecao:
             return None
         return self.tabela.item(selecao[0], "values")
+
+# Campo de texto que mostra uma dica em cinza enquanto está vazio e sem foco
+class CampoComDica(ttk.Entry):
+    def __init__(self, pai, dica, **opcoes):
+        self.variavel = tk.StringVar()
+        super().__init__(pai, textvariable=self.variavel, **opcoes)
+        self.dica = dica
+        self.mostrando_dica = False
+        self.bind("<FocusIn>", self._esconder_dica)
+        self.bind("<FocusOut>", self._mostrar_dica)
+        self._mostrar_dica()
+
+    # Texto digitado (vazio enquanto a dica estiver aparecendo)
+    def texto(self):
+        return "" if self.mostrando_dica else self.variavel.get()
+
+    def _mostrar_dica(self, _event=None):
+        if not self.variavel.get():
+            self.mostrando_dica = True
+            self.configure(style="Dica.TEntry")
+            self.variavel.set(self.dica)
+
+    def _esconder_dica(self, _event=None):
+        if self.mostrando_dica:
+            self.mostrando_dica = False
+            self.variavel.set("")
+            self.configure(style="TEntry")
 
 # Formulário com os dados do pedido
 class FormularioPedido(ttk.Frame):

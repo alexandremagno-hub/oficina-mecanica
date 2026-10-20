@@ -1,15 +1,15 @@
 # Oficina Mecânica
 
-Protótipo de sistema de gestão de pedidos para uma oficina mecânica, feito em Python com interface Tkinter e banco de dados SQLite.
+Protótipo de sistema de gestão de ordens de serviço (OS) para uma oficina mecânica, feito em Python com interface Tkinter e banco de dados SQLite.
 
 ## Funcionalidades
 
 - Login de usuários
-- Cadastro de pedidos (cliente, veículo, placa, serviço e valor)
+- Abertura de ordens de serviço (cliente, veículo, placa, serviço e valor)
 - Registro automático das datas de entrada e de entrega
-- Tela única de pedidos, com busca por nome, placa ou CPF, filtro por situação e
+- Tela única de ordens de serviço, com busca por nome, placa ou CPF, filtro por situação e
   ordenação ao clicar no cabeçalho das colunas
-- Atualização e exclusão de pedidos
+- Atualização e exclusão de ordens de serviço
 
 ## Requisitos
 

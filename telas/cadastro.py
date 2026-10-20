@@ -5,8 +5,8 @@ from telas.componentes import FormularioPedido
 
 # Página de cadastro de pedido
 class TelaCadastro(Pagina):
-    titulo = "Novo pedido"
-    subtitulo = "Insira os dados do pedido"
+    titulo = "Abrir ordem de serviço"
+    subtitulo = "Insira os dados do cliente e do serviço"
 
     def __init__(self, app):
         super().__init__(app)
@@ -19,7 +19,7 @@ class TelaCadastro(Pagina):
             side="left"
         )
         ttk.Button(
-            botoes, text="Cadastrar pedido", style="Primario.TButton", command=self.cadastrar
+            botoes, text="Abrir OS", style="Primario.TButton", command=self.cadastrar
         ).pack(side="right")
 
     def ao_mostrar(self):
@@ -34,4 +34,4 @@ class TelaCadastro(Pagina):
         self.app.banco.cadastrar_pedido(*valores)
         self.formulario.limpar()
         self.formulario.focar()
-        messagebox.showinfo("Sucesso", "Pedido enviado!")
+        messagebox.showinfo("Sucesso", "Ordem de serviço aberta!")

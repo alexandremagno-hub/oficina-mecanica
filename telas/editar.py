@@ -6,7 +6,7 @@ from telas.componentes import FormularioPedido
 
 # Página com o formulário de edição do pedido
 class TelaEditar(Pagina):
-    titulo = "Editar pedido"
+    titulo = "Editar ordem de serviço"
     subtitulo = "Altere os dados e salve"
 
     def __init__(self, app):
@@ -46,5 +46,5 @@ class TelaEditar(Pagina):
             messagebox.showerror("Erro", "Preencha todos os campos!")
             return
         self.app.banco.atualizar_pedido(self.id_pedido, *valores, situacao)
-        messagebox.showinfo("Sucesso", "Pedido atualizado!")
+        messagebox.showinfo("Sucesso", "OS atualizada!")
         self.app.mostrar("pedidos")

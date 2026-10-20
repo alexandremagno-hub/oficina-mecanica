@@ -47,7 +47,7 @@ class Banco:
         for pedido in self.cursor.fetchall():
             centavos = texto_para_centavos(pedido[6])
             if centavos is None:
-                raise ValueError(f"Pedido nº {pedido[0]} tem valor inválido: {pedido[6]!r}")
+                raise ValueError(f"OS nº {pedido[0]} tem valor inválido: {pedido[6]!r}")
             pedidos.append(pedido[:6] + (centavos,) + pedido[7:])
         with self.conexao:
             self.cursor.execute("ALTER TABLE oficina RENAME TO oficina_antiga")

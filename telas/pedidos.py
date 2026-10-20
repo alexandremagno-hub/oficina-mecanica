@@ -1,11 +1,10 @@
 import re
-import tkinter as tk
 import unicodedata
 from tkinter import ttk, messagebox
 
 from banco import SITUACOES
 from telas.base import Pagina
-from telas.componentes import TabelaPedidos
+from telas.componentes import TabelaPedidos, CampoComDica
 
 TODAS = "Todas as situações"
 
@@ -14,10 +13,10 @@ def simplificar(texto):
     sem_acento = unicodedata.normalize("NFD", texto).encode("ascii", "ignore").decode()
     return sem_acento.lower()
 
-# Página com a lista de pedidos: busca, filtro por situação, cadastro, edição e exclusão
+# Página com a lista de ordens de serviço: busca, filtro por situação, cadastro, edição e exclusão
 class TelaPedidos(Pagina):
-    titulo = "Pedidos"
-    subtitulo = "Busque, cadastre, edite ou exclua pedidos"
+    titulo = "Ordens de serviço"
+    subtitulo = "Busque, abra, edite ou exclua ordens de serviço"
     expandir = True
 
     def __init__(self, app):
@@ -27,17 +26,14 @@ class TelaPedidos(Pagina):
         filtros = ttk.Frame(self.cartao, style="Cartao.TFrame")
         filtros.pack(fill="x", pady=(0, 10))
         ttk.Label(filtros, text="Buscar").pack(side="left")
-        self.busca = tk.StringVar()
-        self.busca.trace_add("write", lambda *_: self.filtrar())
-        ttk.Entry(filtros, textvariable=self.busca, width=36).pack(side="left", padx=(8, 20))
+        self.busca = CampoComDica(filtros, "Nome, placa ou CPF", width=36)
+        self.busca.variavel.trace_add("write", lambda *_: self.filtrar())
+        self.busca.pack(side="left", padx=(8, 20))
         ttk.Label(filtros, text="Situação").pack(side="left")
         self.campo_situacao = ttk.Combobox(filtros, state="readonly", width=20)
         self.campo_situacao.set(TODAS)
         self.campo_situacao.bind("<<ComboboxSelected>>", lambda _: self.filtrar())
         self.campo_situacao.pack(side="left", padx=(8, 0))
-        ttk.Label(filtros, text="por nome, placa ou CPF", style="Subtitulo.TLabel").pack(
-            side="right"
-        )
 
         # Botões vêm antes da tabela para não sumirem quando a janela for pequena
         botoes = ttk.Frame(self.cartao, style="Cartao.TFrame")
@@ -52,7 +48,7 @@ class TelaPedidos(Pagina):
         )
         ttk.Button(botoes, text="Editar", command=self.editar).pack(side="right", padx=8)
         ttk.Button(
-            botoes, text="Novo pedido", style="Primario.TButton",
+            botoes, text="Abrir OS", style="Primario.TButton",
             command=lambda: self.app.mostrar("cadastro"),
         ).pack(side="right")
 
@@ -74,12 +70,12 @@ class TelaPedidos(Pagina):
             if (situacao == TODAS or p[7] == situacao) and self._corresponde(p)
         ]
         self.tabela.carregar(visiveis)
-        self.contador.configure(text=f"{len(visiveis)} de {len(self.pedidos)} pedidos")
+        self.contador.configure(text=f"{len(visiveis)} de {len(self.pedidos)} OS")
 
     # Busca no nome (sem diferenciar acentos), na placa (ignorando hífen) e,
     # se só tiver números, no CPF
     def _corresponde(self, pedido):
-        termo = simplificar(self.busca.get().strip())
+        termo = simplificar(self.busca.texto().strip())
         if not termo:
             return True
         cpf, nome, placa = pedido[1], pedido[2], pedido[4]
@@ -92,7 +88,7 @@ class TelaPedidos(Pagina):
     def editar(self):
         pedido = self.tabela.selecionado()
         if pedido is None:
-            messagebox.showwarning("Atenção", "Selecione um pedido na tabela!")
+            messagebox.showwarning("Atenção", "Selecione uma OS na tabela!")
             return
         self.app.paginas["editar"].carregar(pedido)
         self.app.mostrar("editar")
@@ -101,16 +97,16 @@ class TelaPedidos(Pagina):
     def excluir(self):
         pedido = self.tabela.selecionado()
         if pedido is None:
-            messagebox.showwarning("Atenção", "Selecione um pedido na tabela!")
+            messagebox.showwarning("Atenção", "Selecione uma OS na tabela!")
             return
         id_pedido, nome, placa = pedido[0], pedido[2], pedido[4]
         confirmar = messagebox.askyesno(
             "Confirmar exclusão",
-            f"Excluir o pedido nº {id_pedido} de {nome} (placa {placa})?\n"
+            f"Excluir a OS nº {id_pedido} de {nome} (placa {placa})?\n"
             "Essa ação não pode ser desfeita.",
         )
         if not confirmar:
             return
         self.app.banco.excluir_pedido(id_pedido)
         self.ao_mostrar()
-        messagebox.showinfo("Sucesso", "Pedido excluído!")
+        messagebox.showinfo("Sucesso", "OS excluída!")
