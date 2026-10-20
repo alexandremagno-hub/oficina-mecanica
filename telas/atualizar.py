@@ -1,4 +1,3 @@
-import sqlite3
 from tkinter import ttk, messagebox
 
 from telas.base import Pagina
@@ -71,15 +70,13 @@ class TelaEditar(Pagina):
         self.formulario.focar()
 
     def salvar(self):
-        valores = self.formulario.valores()
+        valores = self.formulario.valores_validados()
+        if valores is None:
+            return
         situacao = self.campo_situacao.get()
-        if not all(valores) or not situacao:
+        if not situacao:
             messagebox.showerror("Erro", "Preencha todos os campos!")
             return
-        try:
-            self.app.banco.atualizar_pedido(self.id_pedido, *valores, situacao)
-        except sqlite3.IntegrityError:
-            messagebox.showerror("Erro", "Já existe outro pedido com essa placa!")
-            return
+        self.app.banco.atualizar_pedido(self.id_pedido, *valores, situacao)
         messagebox.showinfo("Sucesso", "Pedido atualizado!")
         self.app.mostrar("atualizar")

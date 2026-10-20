@@ -22,7 +22,7 @@ python3 main.py
 
 Usuários de teste: `alexandre` / `123`, `lucas` / `123` e `gabriel` / `666`.
 
-O banco `DB_Oficina` é criado automaticamente na pasta onde o comando for executado.
+O banco `DB_Oficina` é criado automaticamente na pasta do projeto, de qualquer lugar que o programa seja executado. Ele não é versionado no git. Bancos criados por versões antigas são convertidos automaticamente para o esquema atual ao abrir o programa.
 
 ## Estrutura
 
@@ -31,5 +31,6 @@ main.py          ponto de entrada
 app.py           janela principal e navegação entre telas
 banco.py         acesso ao banco SQLite
 estilos.py       cores e estilos da interface
+moeda.py         conversão e formatação de valores em reais
 telas/           uma classe por tela (login, menu, cadastro, exibir)
 ```

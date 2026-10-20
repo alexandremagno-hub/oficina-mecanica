@@ -1,4 +1,3 @@
-import sqlite3
 from tkinter import ttk, messagebox
 
 from telas.base import Pagina
@@ -27,15 +26,10 @@ class TelaCadastro(Pagina):
 
     # Inserir todos os dados do pedido na tabela
     def cadastrar(self):
-        valores = self.formulario.valores()
-        if not all(valores):
-            messagebox.showerror("Erro", "Preencha todos os campos!")
+        valores = self.formulario.valores_validados()
+        if valores is None:
             return
-        try:
-            self.app.banco.cadastrar_pedido(*valores)
-        except sqlite3.IntegrityError:
-            messagebox.showerror("Erro", "Já existe um pedido com essa placa!")
-            return
+        self.app.banco.cadastrar_pedido(*valores)
         self.formulario.limpar()
         self.formulario.focar()
         messagebox.showinfo("Sucesso", "Pedido enviado!")

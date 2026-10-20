@@ -1,5 +1,7 @@
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
+
+from moeda import texto_para_centavos, formatar_reais
 
 # Tabela com rolagem que lista os pedidos
 class TabelaPedidos(ttk.Frame):
@@ -35,7 +37,8 @@ class TabelaPedidos(ttk.Frame):
     def carregar(self, pedidos):
         self.tabela.delete(*self.tabela.get_children())
         for pedido in pedidos:
-            self.tabela.insert("", tk.END, values=pedido)
+            valores = pedido[:6] + (formatar_reais(pedido[6]),) + pedido[7:]
+            self.tabela.insert("", tk.END, values=valores)
 
     # Pedido da linha selecionada (id, cpf, nome, veiculo, placa, servico, valor, situacao)
     def selecionado(self):
@@ -68,6 +71,18 @@ class FormularioPedido(ttk.Frame):
     def valores(self):
         cpf, nome, veiculo, placa, servico, valor = (campo.get().strip() for campo in self.campos)
         return cpf, nome.title(), veiculo, placa, servico, valor
+
+    # Valores prontos para o banco (valor em centavos); mostra o erro e devolve None se houver problema
+    def valores_validados(self):
+        valores = self.valores()
+        if not all(valores):
+            messagebox.showerror("Erro", "Preencha todos os campos!")
+            return None
+        centavos = texto_para_centavos(valores[5])
+        if centavos is None:
+            messagebox.showerror("Erro", "Valor inválido! Use, por exemplo, 1500 ou 1.500,00.")
+            return None
+        return valores[:5] + (centavos,)
 
     def preencher(self, valores):
         self.limpar()

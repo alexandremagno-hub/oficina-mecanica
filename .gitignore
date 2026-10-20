@@ -1,3 +1,6 @@
 # Cache do Python
 __pycache__/
 *.pyc
+
+# Banco de dados local (criado automaticamente)
+DB_Oficina
