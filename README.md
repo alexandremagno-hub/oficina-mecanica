@@ -6,6 +6,7 @@ Protótipo de sistema de gestão de pedidos para uma oficina mecânica, feito em
 
 - Login de usuários
 - Cadastro de pedidos (cliente, veículo, placa, serviço e valor)
+- Registro automático das datas de entrada e de entrega
 - Listagem dos pedidos cadastrados
 - Atualização e exclusão de pedidos 
 

@@ -1,9 +1,8 @@
 from tkinter import ttk, messagebox
 
+from banco import SITUACOES
 from telas.base import Pagina
 from telas.componentes import TabelaPedidos, FormularioPedido
-
-SITUACOES = ["Na fila", "Em andamento", "Concluído", "Entregue"]
 
 # Página para escolher qual pedido atualizar
 class TelaAtualizar(Pagina):
