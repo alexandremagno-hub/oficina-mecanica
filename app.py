@@ -2,7 +2,7 @@ import tkinter as tk
 
 from banco import Banco
 from estilos import COR_FUNDO, aplicar_estilos
-from telas import TelaLogin, TelaMenu, TelaCadastro, TelaExibir
+from telas import TelaLogin, TelaMenu, TelaCadastro, TelaExibir, TelaAtualizar, TelaEditar, TelaExcluir
 
 # Janela principal: guarda o banco e troca entre as páginas
 class App(tk.Tk):
@@ -19,6 +19,9 @@ class App(tk.Tk):
             "menu": TelaMenu(self),
             "cadastro": TelaCadastro(self),
             "exibir": TelaExibir(self),
+            "atualizar": TelaAtualizar(self),
+            "editar": TelaEditar(self),
+            "excluir": TelaExcluir(self),
         }
         self.pagina_atual = None
         self.protocol("WM_DELETE_WINDOW", self.encerrar)

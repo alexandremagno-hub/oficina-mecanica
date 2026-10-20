@@ -25,6 +25,17 @@ class Banco:
         ) VALUES (?, ?, ?, ?, ?, ?, ?)""", (cpf, nome, veiculo, placa, servico, valor, situacao))
         self.conexao.commit()
 
+    # Alterar os dados de um pedido; levanta sqlite3.IntegrityError se a placa já existir
+    def atualizar_pedido(self, id_pedido, cpf, nome, veiculo, placa, servico, valor, situacao):
+        self.cursor.execute("""UPDATE oficina SET
+        cpf = ?, nome = ?, veiculo = ?, placa = ?, servico = ?, valor = ?, situacao = ?
+        WHERE id = ?""", (cpf, nome, veiculo, placa, servico, valor, situacao, id_pedido))
+        self.conexao.commit()
+
+    def excluir_pedido(self, id_pedido):
+        self.cursor.execute("DELETE FROM oficina WHERE id = ?", (id_pedido,))
+        self.conexao.commit()
+
     def listar_pedidos(self):
         self.cursor.execute("SELECT * FROM oficina")
         return self.cursor.fetchall()

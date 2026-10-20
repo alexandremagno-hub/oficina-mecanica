@@ -7,6 +7,8 @@ COR_TEXTO = "#1F1F1F"
 COR_TEXTO_SUAVE = "#5F6B7A"
 COR_DESTAQUE = "#0078D4"
 COR_DESTAQUE_ESCURO = "#005A9E"
+COR_PERIGO = "#C42B1C"
+COR_PERIGO_ESCURO = "#A32316"
 
 FONTE = "Segoe UI"
 
@@ -25,5 +27,9 @@ def aplicar_estilos():
         "Primario.TButton", background=COR_DESTAQUE, foreground="#FFFFFF", bordercolor=COR_DESTAQUE
     )
     estilo.map("Primario.TButton", background=[("active", COR_DESTAQUE_ESCURO)])
+    estilo.configure(
+        "Perigo.TButton", background=COR_PERIGO, foreground="#FFFFFF", bordercolor=COR_PERIGO
+    )
+    estilo.map("Perigo.TButton", background=[("active", COR_PERIGO_ESCURO)])
     estilo.configure("Treeview", rowheight=26, font=(FONTE, 10))
     estilo.configure("Treeview.Heading", font=(FONTE, 10, "bold"))
