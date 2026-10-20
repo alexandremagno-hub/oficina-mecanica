@@ -10,10 +10,8 @@ class TelaMenu(Pagina):
     def __init__(self, app):
         super().__init__(app)
         opcoes = [
-            ("Cadastrar pedido", "cadastro"),
-            ("Exibir pedidos", "exibir"),
-            ("Atualizar pedido", "atualizar"),
-            ("Excluir pedido", "excluir"),
+            ("Novo pedido", "cadastro"),
+            ("Pedidos", "pedidos"),
         ]
         for texto, pagina in opcoes:
             ttk.Button(

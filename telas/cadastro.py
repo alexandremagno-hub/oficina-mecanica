@@ -10,11 +10,12 @@ class TelaCadastro(Pagina):
 
     def __init__(self, app):
         super().__init__(app)
+        self.voltar_para = "menu"
         self.formulario = FormularioPedido(self.cartao)
         self.formulario.pack(fill="x")
         botoes = ttk.Frame(self.cartao, style="Cartao.TFrame")
         botoes.pack(fill="x", pady=(20, 0))
-        ttk.Button(botoes, text="Voltar ao menu", command=lambda: self.app.mostrar("menu")).pack(
+        ttk.Button(botoes, text="Voltar", command=lambda: self.app.mostrar(self.voltar_para)).pack(
             side="left"
         )
         ttk.Button(
@@ -22,6 +23,7 @@ class TelaCadastro(Pagina):
         ).pack(side="right")
 
     def ao_mostrar(self):
+        self.voltar_para = self.app.nome_anterior
         self.formulario.focar()
 
     # Inserir todos os dados do pedido na tabela

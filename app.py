@@ -2,13 +2,14 @@ import tkinter as tk
 
 from banco import Banco
 from estilos import COR_FUNDO, aplicar_estilos
-from telas import TelaLogin, TelaMenu, TelaCadastro, TelaExibir, TelaAtualizar, TelaEditar, TelaExcluir
+from telas import TelaLogin, TelaMenu, TelaCadastro, TelaPedidos, TelaEditar
 
 # Janela principal: guarda o banco e troca entre as páginas
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("PROTÓTIPO OFICINA MECÂNICA")
+        self.geometry("1100x650")
         self.minsize(800, 500)
         self.configure(bg=COR_FUNDO)
         aplicar_estilos()
@@ -18,12 +19,12 @@ class App(tk.Tk):
             "login": TelaLogin(self),
             "menu": TelaMenu(self),
             "cadastro": TelaCadastro(self),
-            "exibir": TelaExibir(self),
-            "atualizar": TelaAtualizar(self),
+            "pedidos": TelaPedidos(self),
             "editar": TelaEditar(self),
-            "excluir": TelaExcluir(self),
         }
         self.pagina_atual = None
+        self.nome_atual = None
+        self.nome_anterior = None
         self.protocol("WM_DELETE_WINDOW", self.encerrar)
         self.mostrar("login")
 
@@ -31,6 +32,7 @@ class App(tk.Tk):
     def mostrar(self, nome):
         if self.pagina_atual is not None:
             self.pagina_atual.pack_forget()
+        self.nome_anterior, self.nome_atual = self.nome_atual, nome
         self.pagina_atual = self.paginas[nome]
         self.pagina_atual.pack(fill="both", expand=True)
         self.pagina_atual.ao_mostrar()

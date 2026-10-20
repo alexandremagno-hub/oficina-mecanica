@@ -2,38 +2,7 @@ from tkinter import ttk, messagebox
 
 from banco import SITUACOES
 from telas.base import Pagina
-from telas.componentes import TabelaPedidos, FormularioPedido
-
-# Página para escolher qual pedido atualizar
-class TelaAtualizar(Pagina):
-    titulo = "Atualizar pedido"
-    subtitulo = "Selecione o pedido que deseja alterar"
-
-    def __init__(self, app):
-        super().__init__(app)
-        self.tabela = TabelaPedidos(self.cartao)
-        self.tabela.pack(fill="both", expand=True)
-        self.tabela.tabela.bind("<Double-1>", self.editar)
-        botoes = ttk.Frame(self.cartao, style="Cartao.TFrame")
-        botoes.pack(fill="x", pady=(20, 0))
-        ttk.Button(botoes, text="Voltar ao menu", command=lambda: self.app.mostrar("menu")).pack(
-            side="left"
-        )
-        ttk.Button(
-            botoes, text="Editar selecionado", style="Primario.TButton", command=self.editar
-        ).pack(side="right")
-
-    def ao_mostrar(self):
-        self.tabela.carregar(self.app.banco.listar_pedidos())
-
-    # Abrir o pedido selecionado na página de edição
-    def editar(self, _event=None):
-        pedido = self.tabela.selecionado()
-        if pedido is None:
-            messagebox.showwarning("Atenção", "Selecione um pedido na tabela!")
-            return
-        self.app.paginas["editar"].carregar(pedido)
-        self.app.mostrar("editar")
+from telas.componentes import FormularioPedido
 
 # Página com o formulário de edição do pedido
 class TelaEditar(Pagina):
@@ -53,7 +22,7 @@ class TelaEditar(Pagina):
         self.campo_situacao.grid(row=linha, column=1, sticky="ew", pady=5)
         botoes = ttk.Frame(self.cartao, style="Cartao.TFrame")
         botoes.pack(fill="x", pady=(20, 0))
-        ttk.Button(botoes, text="Cancelar", command=lambda: self.app.mostrar("atualizar")).pack(
+        ttk.Button(botoes, text="Cancelar", command=lambda: self.app.mostrar("pedidos")).pack(
             side="left"
         )
         ttk.Button(
@@ -78,4 +47,4 @@ class TelaEditar(Pagina):
             return
         self.app.banco.atualizar_pedido(self.id_pedido, *valores, situacao)
         messagebox.showinfo("Sucesso", "Pedido atualizado!")
-        self.app.mostrar("atualizar")
+        self.app.mostrar("pedidos")

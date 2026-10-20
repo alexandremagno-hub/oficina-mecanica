@@ -33,7 +33,7 @@ def formatar_data(data):
     ano, mes, dia = data.split("-")
     return f"{dia}/{mes}/{ano}"
 
-# Tabela com rolagem que lista os pedidos
+# Tabela com rolagem que lista os pedidos; clicar no cabeçalho ordena pela coluna
 class TabelaPedidos(ttk.Frame):
     colunas = [
         ("id", "Nº", 50),
@@ -50,25 +50,77 @@ class TabelaPedidos(ttk.Frame):
 
     def __init__(self, pai, altura=10):
         super().__init__(pai, style="Cartao.TFrame")
+        self.pedidos = []
+        self.ordem = None  # (índice da coluna, decrescente)
         self.tabela = ttk.Treeview(
             self, columns=[c[0] for c in self.colunas], show="headings", height=altura,
             selectmode="browse",
         )
-        for coluna, titulo, largura in self.colunas:
-            self.tabela.heading(coluna, text=titulo)
+        for indice, (coluna, titulo, largura) in enumerate(self.colunas):
+            self.tabela.heading(coluna, text=titulo, command=lambda i=indice: self.ordenar(i))
             self.tabela.column(
                 coluna,
                 width=largura,
                 anchor="center" if coluna in ("id", "placa", "situacao", "entrada", "entrega") else "w",
             )
-        barra_rolagem = ttk.Scrollbar(self, orient="vertical", command=self.tabela.yview)
-        self.tabela.configure(yscrollcommand=barra_rolagem.set)
-        self.tabela.pack(side="left", fill="both", expand=True)
-        barra_rolagem.pack(side="right", fill="y")
+        rolagem_vertical = ttk.Scrollbar(self, orient="vertical", command=self.tabela.yview)
+        rolagem_horizontal = ttk.Scrollbar(self, orient="horizontal", command=self.tabela.xview)
+        self.tabela.configure(
+            yscrollcommand=rolagem_vertical.set, xscrollcommand=rolagem_horizontal.set
+        )
+        self.tabela.grid(row=0, column=0, sticky="nsew")
+        rolagem_vertical.grid(row=0, column=1, sticky="ns")
+        rolagem_horizontal.grid(row=1, column=0, sticky="ew")
+        self.rowconfigure(0, weight=1)
+        self.columnconfigure(0, weight=1)
+        self.tabela.bind("<Button-1>", self._clique)
+        self.tabela.bind("<Escape>", lambda _: self.desmarcar())
 
+    # Clicar numa linha seleciona; clicar de novo nela ou numa área vazia tira a seleção.
+    # A seleção é feita aqui (e não pelo Tk) para cliques seguidos não virarem clique duplo
+    def _clique(self, evento):
+        regiao = self.tabela.identify_region(evento.x, evento.y)
+        linha = self.tabela.identify_row(evento.y)
+        if regiao not in ("cell", "nothing"):
+            return None
+        self.tabela.focus_set()
+        if regiao == "cell" and linha not in self.tabela.selection():
+            self.tabela.selection_set(linha)
+            self.tabela.focus(linha)
+        else:
+            self.desmarcar()
+        return "break"
+
+    def desmarcar(self):
+        self.tabela.selection_remove(self.tabela.selection())
+
+    # Mostrar os pedidos (tuplas na ordem de banco.COLUNAS), mantendo a ordenação escolhida
     def carregar(self, pedidos):
+        self.pedidos = list(pedidos)
+        self._exibir()
+
+    # Ordenar pela coluna clicada; clicar de novo inverte a ordem
+    def ordenar(self, indice):
+        decrescente = self.ordem == (indice, False)
+        self.ordem = (indice, decrescente)
+        for i, (coluna, titulo, _) in enumerate(self.colunas):
+            seta = (" ▼" if decrescente else " ▲") if i == indice else ""
+            self.tabela.heading(coluna, text=titulo + seta)
+        self._exibir()
+
+    # Ordena pelos valores do banco (centavos, datas AAAA-MM-DD), com os vazios sempre no fim
+    def _ordenados(self):
+        if self.ordem is None:
+            return self.pedidos
+        indice, decrescente = self.ordem
+        preenchidos = [p for p in self.pedidos if p[indice] is not None]
+        vazios = [p for p in self.pedidos if p[indice] is None]
+        chave = lambda p: p[indice].lower() if isinstance(p[indice], str) else p[indice]
+        return sorted(preenchidos, key=chave, reverse=decrescente) + vazios
+
+    def _exibir(self):
         self.tabela.delete(*self.tabela.get_children())
-        for pedido in pedidos:
+        for pedido in self._ordenados():
             id_pedido, cpf, nome, veiculo, placa, servico, valor, situacao, entrada, entrega = pedido
             valores = (
                 id_pedido, formatar_cpf(cpf), nome, veiculo, placa, servico, formatar_reais(valor),

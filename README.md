@@ -7,8 +7,9 @@ Protótipo de sistema de gestão de pedidos para uma oficina mecânica, feito em
 - Login de usuários
 - Cadastro de pedidos (cliente, veículo, placa, serviço e valor)
 - Registro automático das datas de entrada e de entrega
-- Listagem dos pedidos cadastrados
-- Atualização e exclusão de pedidos 
+- Tela única de pedidos, com busca por nome, placa ou CPF, filtro por situação e
+  ordenação ao clicar no cabeçalho das colunas
+- Atualização e exclusão de pedidos
 
 ## Requisitos
 
@@ -33,5 +34,5 @@ app.py           janela principal e navegação entre telas
 banco.py         acesso ao banco SQLite
 estilos.py       cores e estilos da interface
 moeda.py         conversão e formatação de valores em reais
-telas/           uma classe por tela (login, menu, cadastro, exibir)
+telas/           uma classe por tela (login, menu, cadastro, pedidos, editar)
 ```
