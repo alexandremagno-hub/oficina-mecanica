@@ -1,42 +1,38 @@
-import tkinter as tk
+import sys
+from pathlib import Path
+
+import streamlit as st
+from streamlit import runtime
+from streamlit.web import cli
 
 from banco import Banco
-from estilos import COR_FUNDO, aplicar_estilos
-from telas import TelaLogin, TelaMenu, TelaCadastro, TelaPedidos, TelaEditar
+from paginas import login
 
-# Janela principal: guarda o banco e troca entre as páginas
-class App(tk.Tk):
-    def __init__(self):
-        super().__init__()
-        self.title("PROTÓTIPO OFICINA MECÂNICA")
-        self.geometry("1100x650")
-        self.minsize(800, 500)
-        self.configure(bg=COR_FUNDO)
-        aplicar_estilos()
+# Executado com "python app.py" (ex.: botão Run da IDE): inicia o servidor do Streamlit
+if __name__ == "__main__" and not runtime.exists():
+    sys.argv = ["streamlit", "run", __file__]
+    sys.exit(cli.main())
 
-        self.banco = Banco()
-        self.paginas = {
-            "login": TelaLogin(self),
-            "menu": TelaMenu(self),
-            "cadastro": TelaCadastro(self),
-            "pedidos": TelaPedidos(self),
-            "editar": TelaEditar(self),
-        }
-        self.pagina_atual = None
-        self.nome_atual = None
-        self.nome_anterior = None
-        self.protocol("WM_DELETE_WINDOW", self.encerrar)
-        self.mostrar("login")
+st.set_page_config(page_title="Oficina Mecânica", page_icon=":material/build:", layout="wide")
 
-    # Esconder a página atual e mostrar outra
-    def mostrar(self, nome):
-        if self.pagina_atual is not None:
-            self.pagina_atual.pack_forget()
-        self.nome_anterior, self.nome_atual = self.nome_atual, nome
-        self.pagina_atual = self.paginas[nome]
-        self.pagina_atual.pack(fill="both", expand=True)
-        self.pagina_atual.ao_mostrar()
+# Uma conexão com o banco por sessão do navegador
+if "banco" not in st.session_state:
+    st.session_state.banco = Banco()
 
-    def encerrar(self):
-        self.banco.fechar()
-        self.destroy()
+if "usuario" not in st.session_state:
+    login.mostrar()
+    st.stop()
+
+from navegacao import ABRIR, ANDAMENTO, ORDENS
+
+st.logo(Path(__file__).parent / "imagens" / "logo.svg", size="large", icon_image=":material/build:")
+pagina = st.navigation([ORDENS, ANDAMENTO, ABRIR])
+with st.sidebar:
+    st.caption(f"Conectado como **{st.session_state.usuario}**")
+    if st.button("Sair", icon=":material/logout:", width="stretch"):
+        del st.session_state.usuario
+        st.rerun()
+
+if aviso := st.session_state.pop("aviso", None):
+    st.toast(aviso, icon=":material/check_circle:")
+pagina.run()

@@ -1,0 +1,14 @@
+[theme]
+primaryColor = "#0078D4"
+baseRadius = "medium"
+
+[client]
+toolbarMode = "minimal"
+
+# Barra lateral em azul escuro, com texto claro
+[theme.sidebar]
+backgroundColor = "#0F2A4A"
+secondaryBackgroundColor = "#1C3D66"
+textColor = "#E8F0FA"
+primaryColor = "#4DA3FF"
+borderColor = "#2A4F7D"
