@@ -11,7 +11,7 @@ from paginas.valores import formulario_valores, resumo_valores
 
 PREFIXO = "editar"
 
-# Ícone de cada situação na tabela e nos filtros (situações antigas fora da lista usam ⚫)
+# Ícone de cada situação nas listas e nos filtros (situações antigas fora da lista usam ⚫)
 ICONES = {"Na fila": "🟡", "Em andamento": "🔵", "Concluído": "🟢", "Entregue": "⚪"}
 
 TITULOS = {
@@ -40,62 +40,89 @@ def carregar_pedidos():
         pedidos[coluna] = pedidos[coluna].fillna("")
     return pedidos
 
-# Trocar a chave da tabela faz ela ser recriada sem nenhuma linha selecionada
-def reiniciar_tabela():
-    st.session_state.versao_tabela = st.session_state.get("versao_tabela", 0) + 1
+# Fecha o painel de edição depois de salvar ou excluir
+def limpar_selecao():
+    st.session_state.pop("selecao", None)
 
-# Indicadores por situação e total já faturado
+# Indicadores por situação
 def resumo(pedidos):
     contagem = pedidos["situacao"].value_counts()
-    colunas = st.columns(len(SITUACOES) + 1)
-    for coluna, situacao in zip(colunas, SITUACOES):
+    for coluna, situacao in zip(st.columns(len(SITUACOES)), SITUACOES):
         coluna.metric(com_icone(situacao), int(contagem.get(situacao, 0)), border=True)
-    faturado = int(pedidos.loc[pedidos["situacao"] == ENTREGUE, "valor"].sum())
-    colunas[-1].metric("💰 Faturado (R$)", formatar_reais(faturado), border=True)
 
 # Valor em reais para exibição, ou "—" se o serviço ainda não foi concluído
 def formatar_valor(centavos):
     return formatar_reais(int(centavos)) if pd.notna(centavos) and centavos >= 0 else "—"
 
-# Tabela com as OS visíveis; devolve a OS selecionada (ou None).
-# O Styler só muda o que aparece: a ordenação ao clicar no cabeçalho usa os valores do banco.
-# Valores vazios viram -1 só na tabela, porque o Streamlit mostraria "None" nas células nulas
-def tabela(visiveis):
-    estilo = visiveis.fillna({"valor": -1}).style.format({
-        "cpf": formatar_cpf,
-        "valor": formatar_valor,
-        "situacao": com_icone,
-        "data_entrada": formatar_data,
-        "data_entrega": formatar_data,
-    })
-    ids = tuple(visiveis["id"])
-    evento = st.dataframe(
-        estilo,
-        hide_index=True,
-        width="stretch",
-        column_config=TITULOS,
-        column_order=list(TITULOS),
-        on_select="rerun",
-        selection_mode="single-row",
-        # Mudar a busca ou o filtro também recria a tabela, para a seleção não apontar para outra OS
-        key=f"tabela_{st.session_state.get('versao_tabela', 0)}_{hash(ids)}",
-    )
-    linhas = evento.selection.rows
-    return visiveis.iloc[linhas[0]] if linhas else None
+# As duas listas têm o mesmo formato: a linha principal mostra o básico e a seta abre uma
+# segunda linha com o resto; DETALHES de cada lado diz o que aparece nessa segunda linha
+RESUMIDAS = {"id": str, "nome": str, "veiculo": str, "placa": str}
+DETALHES_ABERTAS = {
+    "cpf": formatar_cpf, "servico": str, "valor": formatar_valor, "data_entrada": formatar_data,
+}
+DETALHES_ENTREGUES = {
+    "cpf": formatar_cpf, "servico": str, "data_entrada": formatar_data,
+    "data_entrega": formatar_data,
+}
+LARGURAS = [1, 3, 3, 2, 3, 1]
+
+def alternar_detalhes(id_pedido):
+    expandidas = st.session_state.setdefault("expandidas", set())
+    expandidas.symmetric_difference_update({id_pedido})
+
+def selecionar(id_pedido):
+    st.session_state.selecao = id_pedido
+
+# Lista de OS com a coluna extra da linha principal (campo e formatação) e os detalhes;
+# devolve a OS selecionada (ou None)
+def lista(visiveis, extra, detalhes):
+    if visiveis.empty:
+        st.info("Nenhuma OS aqui.", icon=":material/info:")
+        return None
+    resumidas = RESUMIDAS | dict([extra])
+    for coluna, campo in zip(st.columns(LARGURAS), resumidas):
+        coluna.caption(f"**{TITULOS[campo]}**")
+    expandidas = st.session_state.get("expandidas", set())
+    selecionada = st.session_state.get("selecao")
+    for pedido in visiveis.itertuples():
+        id_pedido = int(pedido.id)
+        aberta = id_pedido in expandidas
+        with st.container(border=True):
+            colunas = st.columns(LARGURAS, vertical_alignment="center")
+            for coluna, (campo, formatar) in zip(colunas, resumidas.items()):
+                coluna.write(formatar(getattr(pedido, campo)))
+            colunas[-1].button(
+                "", key=f"seta_{id_pedido}", type="tertiary",
+                icon=":material/expand_less:" if aberta else ":material/expand_more:",
+                help="Esconder detalhes" if aberta else "Mostrar detalhes",
+                on_click=alternar_detalhes, args=(id_pedido,),
+            )
+            if aberta:
+                for coluna, (campo, formatar) in zip(st.columns(len(detalhes) + 1), detalhes.items()):
+                    coluna.caption(TITULOS[campo])
+                    coluna.write(formatar(getattr(pedido, campo)))
+                st.button(
+                    "Editando" if id_pedido == selecionada else "Editar", key=f"editar_{id_pedido}",
+                    icon=":material/edit:", type="primary" if id_pedido == selecionada else "secondary",
+                    on_click=selecionar, args=(id_pedido,),
+                )
+    # A OS escolhida pode estar na outra lista ou ter sumido por causa da busca ou do filtro
+    escolhida = visiveis[visiveis["id"] == selecionada]
+    return escolhida.iloc[0] if not escolhida.empty else None
 
 def salvar(id_pedido):
     valores = valores_validados(PREFIXO)
     if valores is None:
         return
     st.session_state.banco.atualizar_pedido(id_pedido, *valores)
-    reiniciar_tabela()
+    limpar_selecao()
     avisar(f"OS nº {id_pedido} atualizada!")
 
 # Corrigir a mão de obra e as peças de uma OS já concluída
 @st.dialog("Valores do serviço", width="large")
 def alterar_valores(pedido):
     if formulario_valores(pedido, "Salvar valores", ":material/save:"):
-        reiniciar_tabela()
+        limpar_selecao()
         avisar(f"Valores da OS nº {int(pedido['id'])} atualizados!")
         st.rerun()
 
@@ -108,7 +135,7 @@ def confirmar_exclusao(id_pedido, nome, placa):
         st.rerun()
     if excluir.button("Excluir", type="primary", icon=":material/delete:", width="stretch"):
         st.session_state.banco.excluir_pedido(id_pedido)
-        reiniciar_tabela()
+        limpar_selecao()
         avisar(f"OS nº {id_pedido} excluída!")
         st.rerun()
 
@@ -177,10 +204,23 @@ def mostrar():
     ]
     visiveis = pedidos[pd.Series(mascara, index=pedidos.index, dtype=bool)].reset_index(drop=True)
 
-    pedido = tabela(visiveis)
+    # Em aberto à esquerda, com a situação, e entregues à direita, com o valor cobrado
+    entregues = visiveis["situacao"] == ENTREGUE
+    esquerda, direita = st.columns(2)
+    with esquerda:
+        st.subheader("Em aberto")
+        pedido_aberto = lista(
+            visiveis[~entregues], ("situacao", com_icone), DETALHES_ABERTAS,
+        )
+    with direita:
+        st.subheader("Entregues")
+        pedido_entregue = lista(
+            visiveis[entregues], ("valor", formatar_valor), DETALHES_ENTREGUES,
+        )
     st.caption(
-        f"{len(visiveis)} de {len(pedidos)} OS · clique no cabeçalho para ordenar · "
-        "selecione uma linha para editar ou excluir"
+        f"{len(visiveis)} de {len(pedidos)} OS · use a seta para ver os detalhes "
+        "e editar ou excluir uma OS"
     )
+    pedido = pedido_aberto if pedido_aberto is not None else pedido_entregue
     if pedido is not None:
         painel(pedido)
