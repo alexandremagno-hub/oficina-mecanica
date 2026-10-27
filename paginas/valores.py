@@ -108,7 +108,7 @@ def campos_valores(pedido):
 # Formulário completo dentro de um diálogo: grava os valores ao clicar no botão e devolve
 # True se gravou
 def formulario_valores(pedido, rotulo, icone):
-    st.markdown(f"**OS nº {int(pedido['id'])}** · {pedido['nome']}  \n{pedido['servico']}")
+    st.markdown(f"**{pedido['nome']}**  \n{pedido['servico']}")
     valores, erro = campos_valores(pedido)
     if not st.button(rotulo, type="primary", icon=icone, width="stretch"):
         return False

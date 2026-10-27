@@ -96,7 +96,7 @@ def indicadores(do_periodo, todas, ano):
 def tabela(entregues):
     st.dataframe(
         pd.DataFrame({
-            "Nº OS": entregues["id"],
+            "Nº": range(1, len(entregues) + 1),
             "Cliente": entregues["nome"],
             "Placa": entregues["placa"],
             "Serviço": entregues["servico"],

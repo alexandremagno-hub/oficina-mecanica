@@ -15,7 +15,7 @@ PREFIXO = "editar"
 ICONES = {"Na fila": "🟡", "Em andamento": "🔵", "Concluído": "🟢", "Entregue": "⚪"}
 
 TITULOS = {
-    "id": "Nº OS", "cpf": "CPF", "nome": "Cliente", "veiculo": "Veículo", "placa": "Placa",
+    "id": "Nº", "cpf": "CPF", "nome": "Cliente", "veiculo": "Veículo", "placa": "Placa",
     "servico": "Serviço", "valor": "Valor (R$)", "situacao": "Situação",
     "data_entrada": "Entrada", "data_entrega": "Entrega",
 }
@@ -71,7 +71,8 @@ def formatar_valor(centavos):
     return formatar_reais(int(centavos)) if pd.notna(centavos) and centavos >= 0 else "—"
 
 # As duas listas têm o mesmo formato: a linha principal mostra o básico e a seta abre uma
-# segunda linha com o resto; DETALHES de cada lado diz o que aparece nessa segunda linha
+# segunda linha com o resto; DETALHES de cada lado diz o que aparece nessa segunda linha.
+# Na coluna "id" aparece a posição da OS na própria lista (1, 2, 3…), não o número da OS
 RESUMIDAS = {"id": str, "nome": str, "veiculo": str, "placa": str}
 DETALHES_ABERTAS = {
     "cpf": formatar_cpf, "servico": str, "valor": formatar_valor, "data_entrada": formatar_data,
@@ -100,13 +101,13 @@ def lista(visiveis, extra, detalhes):
         coluna.caption(f"**{TITULOS[campo]}**")
     expandidas = st.session_state.get("expandidas", set())
     selecionada = st.session_state.get("selecao")
-    for pedido in visiveis.itertuples():
+    for posicao, pedido in enumerate(visiveis.itertuples(), start=1):
         id_pedido = int(pedido.id)
         aberta = id_pedido in expandidas
         with st.container(border=True):
             colunas = st.columns(LARGURAS, vertical_alignment="center")
             for coluna, (campo, formatar) in zip(colunas, resumidas.items()):
-                coluna.write(formatar(getattr(pedido, campo)))
+                coluna.write(str(posicao) if campo == "id" else formatar(getattr(pedido, campo)))
             colunas[-1].button(
                 "", key=f"seta_{id_pedido}", type="tertiary",
                 icon=":material/expand_less:" if aberta else ":material/expand_more:",
