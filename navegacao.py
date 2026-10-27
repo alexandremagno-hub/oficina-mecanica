@@ -1,6 +1,6 @@
 import streamlit as st
 
-from paginas import abrir_os, andamento, ordens
+from paginas import abrir_os, andamento, faturamento, ordens
 
 # Páginas do sistema após o login (usadas no menu lateral e nos links entre páginas)
 ORDENS = st.Page(
@@ -11,3 +11,6 @@ ANDAMENTO = st.Page(
     andamento.mostrar, title="Andamento", icon=":material/view_kanban:", url_path="andamento",
 )
 ABRIR = st.Page(abrir_os.mostrar, title="Abrir OS", icon=":material/add_circle:", url_path="abrir")
+FATURAMENTO = st.Page(
+    faturamento.mostrar, title="Faturamento", icon=":material/payments:", url_path="faturamento",
+)

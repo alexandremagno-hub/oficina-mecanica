@@ -23,10 +23,10 @@ if "usuario" not in st.session_state:
     login.mostrar()
     st.stop()
 
-from navegacao import ABRIR, ANDAMENTO, ORDENS
+from navegacao import ABRIR, ANDAMENTO, FATURAMENTO, ORDENS
 
 st.logo(Path(__file__).parent / "imagens" / "logo.svg", size="large", icon_image=":material/build:")
-pagina = st.navigation([ORDENS, ANDAMENTO, ABRIR])
+pagina = st.navigation([ORDENS, ANDAMENTO, FATURAMENTO, ABRIR])
 with st.sidebar:
     st.caption(f"Conectado como **{st.session_state.usuario}**")
     if st.button("Sair", icon=":material/logout:", width="stretch"):
