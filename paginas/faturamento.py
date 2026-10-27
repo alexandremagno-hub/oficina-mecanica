@@ -94,6 +94,7 @@ def tabela(entregues):
             "Placa": entregues["placa"],
             "Serviço": entregues["servico"],
             "Entrega": entregues["data_entrega"].map(formatar_data),
+            "Concluída por": entregues["nome_conclusao"].fillna("—"),
             "Mão de obra (R$)": entregues["mao"].map(formatar_reais),
             "Peças (R$)": entregues["pecas_total"].map(formatar_reais),
             "Total (R$)": entregues["valor"].map(formatar_reais),

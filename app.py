@@ -36,7 +36,7 @@ pagina = st.navigation(paginas)
 with st.sidebar:
     st.caption(f"Conectado como **{st.session_state.get('nome_usuario', st.session_state.usuario)}**")
     if st.button("Sair", icon=":material/logout:", width="stretch"):
-        for chave in ("usuario", "nome_usuario", "admin"):
+        for chave in ("usuario", "id_funcionario", "nome_usuario", "admin"):
             st.session_state.pop(chave, None)
         st.rerun()
 

@@ -10,6 +10,10 @@ Protótipo de sistema de gestão de ordens de serviço (OS) para uma oficina mec
   senha e desativação de quem saiu da oficina (inativos não entram no sistema)
 - Abertura de ordens de serviço (cliente, veículo, placa e serviço)
 - Registro automático das datas de entrada e de entrega
+- Registro de quem abriu cada OS e de quem concluiu o serviço (o funcionário conectado no
+  momento), exibido na lista de OS, no quadro de andamento e no faturamento
+- Na lista de OS, cada funcionário vê só as entregas que abriu ou concluiu ("Minhas entregas");
+  o administrador vê todas
 - Resumo com a quantidade de OS em cada situação
 - Página de faturamento: faturamento do mês e total, OS entregues e ticket médio, gráfico
   mensal separando mão de obra e peças e lista das OS entregues, com filtro por ano

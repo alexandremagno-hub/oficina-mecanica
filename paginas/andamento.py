@@ -3,14 +3,16 @@ import streamlit as st
 
 from banco import CONCLUIDO, ENTREGUE, SITUACOES
 from paginas.formulario import avisar
-from paginas.ordens import carregar_pedidos, com_icone, formatar_data, formatar_valor
+from paginas.ordens import carregar_pedidos, com_icone, formatar_data, formatar_valor, responsaveis
 from paginas.valores import formulario_valores
 
 # Quantas OS entregues aparecem no quadro (as mais recentes); as demais ficam na lista de OS
 LIMITE_ENTREGUES = 10
 
 def mover(id_pedido, situacao):
-    st.session_state.banco.mudar_situacao(id_pedido, situacao)
+    st.session_state.banco.mudar_situacao(
+        id_pedido, situacao, st.session_state.get("id_funcionario")
+    )
     avisar(f"OS nº {id_pedido} → {situacao}")
 
 # Ao concluir, pergunta a mão de obra e as peças colocadas (já preenchidas se a OS voltou de etapa)
@@ -28,7 +30,7 @@ def cartao(pedido, etapa):
         st.caption(
             f"{pedido.veiculo} · {pedido.placa}  \n{pedido.servico}  \n"
             + (f"R$ {formatar_valor(pedido.valor)}" if pd.notna(pedido.valor) else "valor a definir")
-            + f" · entrada {formatar_data(pedido.data_entrada)}"
+            + f" · entrada {formatar_data(pedido.data_entrada)}  \n{responsaveis(pedido._asdict())}"
         )
         voltar, avancar = st.columns([1, 3])
         if etapa > 0:

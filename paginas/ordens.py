@@ -1,7 +1,7 @@
 import pandas as pd
 import streamlit as st
 
-from banco import COLUNAS, ENTREGUE, SITUACOES
+from banco import CAMPOS_LISTA, CONCLUIDO, ENTREGUE, SITUACOES
 from formatos import corresponde, formatar_cpf
 from moeda import formatar_reais
 from paginas.formulario import (
@@ -34,11 +34,27 @@ def formatar_data(data):
 # ordena certo, e as vazias viram "" porque o Streamlit mostraria "None" nas células nulas
 def carregar_pedidos():
     pedidos = pd.DataFrame(
-        st.session_state.banco.listar_pedidos(), columns=[c.strip() for c in COLUNAS.split(",")]
+        st.session_state.banco.listar_pedidos(), columns=CAMPOS_LISTA
     )
     for coluna in ("data_entrada", "data_entrega"):
         pedidos[coluna] = pedidos[coluna].fillna("")
     return pedidos
+
+# Quem abriu e quem concluiu a OS, em uma linha; "—" para quem não ficou registrado
+def responsaveis(pedido):
+    nome = lambda valor: valor if isinstance(valor, str) else "—"
+    texto = f"Aberta por {nome(pedido['nome_abertura'])}"
+    if pedido["situacao"] in (CONCLUIDO, ENTREGUE):
+        texto += f" · concluída por {nome(pedido['nome_conclusao'])}"
+    return texto
+
+# Funcionários veem só as OS entregues que abriram ou concluíram; o administrador vê todas
+def entregas_permitidas(pedidos):
+    if st.session_state.get("admin", False):
+        return pedidos
+    eu = st.session_state.get("id_funcionario")
+    minhas = (pedidos["aberta_por"] == eu) | (pedidos["concluida_por"] == eu)
+    return pedidos[(pedidos["situacao"] != ENTREGUE) | minhas].reset_index(drop=True)
 
 # Fecha o painel de edição depois de salvar ou excluir
 def limpar_selecao():
@@ -101,6 +117,7 @@ def lista(visiveis, extra, detalhes):
                 for coluna, (campo, formatar) in zip(st.columns(len(detalhes) + 1), detalhes.items()):
                     coluna.caption(TITULOS[campo])
                     coluna.write(formatar(getattr(pedido, campo)))
+                st.caption(responsaveis(pedido._asdict()))
                 st.button(
                     "Editando" if id_pedido == selecionada else "Editar", key=f"editar_{id_pedido}",
                     icon=":material/edit:", type="primary" if id_pedido == selecionada else "secondary",
@@ -172,7 +189,7 @@ def painel(pedido):
         st.caption(
             f"Situação: {com_icone(pedido['situacao'])} (mude na página Andamento) · "
             f"Entrada: {formatar_data(pedido['data_entrada'])} · "
-            f"Entrega: {formatar_data(pedido['data_entrega'])}"
+            f"Entrega: {formatar_data(pedido['data_entrega'])}  \n{responsaveis(pedido)}"
         )
 
 # Página com a lista de ordens de serviço: resumo, busca, filtro por situação, edição e exclusão
@@ -184,7 +201,7 @@ def mostrar():
     if botao.button("Abrir OS", type="primary", icon=":material/add:", width="stretch"):
         st.switch_page(ABRIR)
 
-    pedidos = carregar_pedidos()
+    pedidos = entregas_permitidas(carregar_pedidos())
     if pedidos.empty:
         st.info("Nenhuma ordem de serviço cadastrada ainda.", icon=":material/info:")
         return
@@ -213,7 +230,7 @@ def mostrar():
             visiveis[~entregues], ("situacao", com_icone), DETALHES_ABERTAS,
         )
     with direita:
-        st.subheader("Entregues")
+        st.subheader("Entregues" if st.session_state.get("admin", False) else "Minhas entregas")
         pedido_entregue = lista(
             visiveis[entregues], ("valor", formatar_valor), DETALHES_ENTREGUES,
         )

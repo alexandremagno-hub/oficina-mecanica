@@ -9,7 +9,7 @@ def cadastrar():
     valores = valores_validados(PREFIXO)
     if valores is None:
         return
-    st.session_state.banco.cadastrar_pedido(*valores)
+    st.session_state.banco.cadastrar_pedido(*valores, st.session_state.get("id_funcionario"))
     limpar(PREFIXO)
     avisar(f"Ordem de serviço de {valores[1]} aberta!")
 
