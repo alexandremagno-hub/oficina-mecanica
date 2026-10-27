@@ -4,7 +4,10 @@ Protótipo de sistema de gestão de ordens de serviço (OS) para uma oficina mec
 
 ## Funcionalidades
 
-- Login de usuários
+- Login dos funcionários, com a senha guardada como hash no banco. O administrador acessa todas
+  as páginas; os demais funcionários, só Ordens de serviço, Andamento e Abrir OS
+- Cadastro de funcionários (nome, usuário, função e data de admissão), com edição, troca de
+  senha e desativação de quem saiu da oficina (inativos não entram no sistema)
 - Abertura de ordens de serviço (cliente, veículo, placa e serviço)
 - Registro automático das datas de entrada e de entrega
 - Resumo com a quantidade de OS em cada situação
@@ -33,7 +36,9 @@ python3 -m venv .venv
 O sistema abre no navegador em http://localhost:8501. Também dá para rodar com
 `.venv/bin/python app.py` (ou pelo botão Run da IDE, com o interpretador do `.venv` selecionado).
 
-Usuários de teste: `alexandre` / `123`, `lucas` / `123` e `gabriel` / `666`.
+Na primeira execução são criados o administrador `admin` / `admin` e os funcionários
+`alexandre` / `123`, `lucas` / `123` e `gabriel` / `666`, com a função "A definir". Entre como
+`admin` e troque essas senhas na página Funcionários.
 
 O banco `DB_Oficina` é criado automaticamente na pasta do projeto, de qualquer lugar que o programa seja executado. Ele não é versionado no git. Bancos criados por versões antigas são convertidos automaticamente para o esquema atual ao abrir o programa.
 
@@ -45,7 +50,8 @@ navegacao.py     páginas do sistema após o login
 banco.py         acesso ao banco SQLite
 formatos.py      CPF, nomes, busca e validação dos dados da OS
 moeda.py         conversão e formatação de valores em reais
-paginas/         uma função por página (login, ordens, andamento, faturamento, abrir_os), o formulário da OS
+senhas.py        hash e conferência das senhas dos funcionários
+paginas/         uma função por página (login, ordens, andamento, faturamento, funcionarios, abrir_os), o formulário da OS
                  e o de mão de obra e peças (valores)
 imagens/         logo da barra lateral
 .streamlit/      tema da interface

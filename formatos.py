@@ -48,3 +48,25 @@ def validar_pedido(cpf, nome, veiculo, placa, servico):
     if cpf_normalizado is None:
         return None, "CPF inválido! Digite os 11 números do CPF."
     return (cpf_normalizado, formatar_nome(nome), veiculo, placa.upper(), servico), None
+
+SENHA_MINIMA = 6
+
+# Senha nova e a confirmação; devolve a mensagem de erro ou None se estiver tudo certo
+def validar_senha(senha, confirmacao):
+    if len(senha) < SENHA_MINIMA:
+        return f"A senha precisa ter pelo menos {SENHA_MINIMA} caracteres."
+    if senha != confirmacao:
+        return "As senhas não conferem."
+    return None
+
+# Dados digitados de um funcionário novo prontos para o banco (usuário em minúsculo, nome
+# formatado). Devolve (valores, None) ou (None, mensagem de erro)
+def validar_funcionario(usuario, nome, funcao, senha, confirmacao):
+    if not all((usuario, nome, funcao, senha)):
+        return None, "Preencha todos os campos!"
+    usuario = usuario.lower()
+    if not re.fullmatch(r"[a-z0-9._-]{3,}", usuario):
+        return None, "Usuário inválido! Use pelo menos 3 letras ou números, sem espaços ou acentos."
+    if erro := validar_senha(senha, confirmacao):
+        return None, erro
+    return (usuario, formatar_nome(nome), funcao, senha), None

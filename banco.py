@@ -4,6 +4,7 @@ from datetime import date
 from pathlib import Path
 
 from moeda import texto_para_centavos
+from senhas import conferir_senha, gerar_hash
 
 # Banco fica sempre na pasta do projeto, independente de onde o programa é executado
 CAMINHO_BANCO = Path(__file__).resolve().parent / "DB_Oficina"
@@ -37,6 +38,29 @@ mao_de_obra INTEGER,
 pecas TEXT
 )"""
 
+# Funcionários da oficina, que também são as contas de acesso ao sistema. A senha fica só
+# como hash; quem sai da oficina é desativado (ativo = 0) em vez de apagado. Administradores
+# (admin = 1) acessam todas as páginas; os demais, só as de ordens de serviço
+ESQUEMA_FUNCIONARIOS = """CREATE TABLE IF NOT EXISTS funcionarios(
+id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+usuario TEXT NOT NULL UNIQUE,
+nome TEXT NOT NULL,
+funcao TEXT NOT NULL,
+data_admissao TEXT,
+senha TEXT NOT NULL,
+ativo INTEGER NOT NULL DEFAULT 1,
+admin INTEGER NOT NULL DEFAULT 0
+)"""
+
+COLUNAS_FUNCIONARIOS = "id, usuario, nome, funcao, data_admissao, ativo, admin"
+
+# Contas que existiam fixas no código antes do cadastro de funcionários; entram no banco
+# na primeira vez para ninguém perder o acesso (usuário, nome, senha)
+CONTAS_INICIAIS = [("alexandre", "Alexandre", "123"), ("lucas", "Lucas", "123"), ("gabriel", "Gabriel", "666")]
+
+# Conta de administrador criada quando o banco ainda não tem nenhum (usuário, nome, senha)
+ADMIN_INICIAL = ("admin", "Administrador", "admin")
+
 # Peças guardadas na OS como lista de (descrição, quantidade, valor unitário em centavos)
 def ler_pecas(texto):
     return [tuple(peca) for peca in json.loads(texto)] if texto else []
@@ -53,6 +77,29 @@ class Banco:
         self._migrar_colunas()
         with self.conexao:
             self._renumerar()
+        self._criar_funcionarios()
+
+    # Criar a tabela de funcionários com as contas iniciais, se ainda não existir nenhum, e
+    # garantir que exista um administrador
+    def _criar_funcionarios(self):
+        with self.conexao:
+            self.cursor.execute(ESQUEMA_FUNCIONARIOS)
+            self.cursor.execute("PRAGMA table_info(funcionarios)")
+            if "admin" not in {coluna[1] for coluna in self.cursor.fetchall()}:
+                self.cursor.execute("ALTER TABLE funcionarios ADD COLUMN admin INTEGER NOT NULL DEFAULT 0")
+            self.cursor.execute("SELECT COUNT(*) FROM funcionarios")
+            if self.cursor.fetchone()[0] == 0:
+                self.cursor.executemany(
+                    "INSERT INTO funcionarios (usuario, nome, funcao, senha) VALUES (?, ?, 'A definir', ?)",
+                    [(usuario, nome, gerar_hash(senha)) for usuario, nome, senha in CONTAS_INICIAIS],
+                )
+            self.cursor.execute("SELECT COUNT(*) FROM funcionarios WHERE admin = 1")
+            if self.cursor.fetchone()[0] == 0:
+                usuario, nome, senha = ADMIN_INICIAL
+                self.cursor.execute(
+                    """INSERT INTO funcionarios (usuario, nome, funcao, senha, admin)
+                    VALUES (?, ?, 'Administrador', ?, 1)""", (usuario, nome, gerar_hash(senha)),
+                )
 
     # Converter bancos antigos (placa única e valor em texto) para o esquema atual
     def _migrar_valor(self):
@@ -151,6 +198,38 @@ class Banco:
     def listar_pedidos(self):
         self.cursor.execute(f"SELECT {COLUNAS} FROM oficina")
         return self.cursor.fetchall()
+
+    # Cadastrar um funcionário ativo. Gera sqlite3.IntegrityError se o usuário já existir
+    def cadastrar_funcionario(self, usuario, nome, funcao, data_admissao, senha):
+        self.cursor.execute("""INSERT INTO funcionarios (
+        usuario, nome, funcao, data_admissao, senha
+        ) VALUES (?, ?, ?, ?, ?)""", (usuario, nome, funcao, data_admissao, gerar_hash(senha)))
+        self.conexao.commit()
+
+    # Alterar os dados de um funcionário; a senha só muda se uma nova for informada
+    def atualizar_funcionario(self, id_funcionario, nome, funcao, data_admissao, ativo, senha=None):
+        self.cursor.execute("""UPDATE funcionarios SET
+        nome = ?, funcao = ?, data_admissao = ?, ativo = ?
+        WHERE id = ?""", (nome, funcao, data_admissao, int(ativo), id_funcionario))
+        if senha:
+            self.cursor.execute("UPDATE funcionarios SET senha = ? WHERE id = ?",
+                                (gerar_hash(senha), id_funcionario))
+        self.conexao.commit()
+
+    # Funcionários como tuplas na ordem de COLUNAS_FUNCIONARIOS, em ordem alfabética
+    def listar_funcionarios(self):
+        self.cursor.execute(f"SELECT {COLUNAS_FUNCIONARIOS} FROM funcionarios ORDER BY nome")
+        return self.cursor.fetchall()
+
+    # (nome, é administrador) se o usuário existir, estiver ativo e a senha conferir; senão None
+    def autenticar(self, usuario, senha):
+        self.cursor.execute(
+            "SELECT nome, admin, senha FROM funcionarios WHERE usuario = ? AND ativo = 1", (usuario,)
+        )
+        encontrado = self.cursor.fetchone()
+        if encontrado and conferir_senha(senha, encontrado[2]):
+            return encontrado[0], bool(encontrado[1])
+        return None
 
     def fechar(self):
         self.conexao.close()
