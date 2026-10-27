@@ -66,22 +66,29 @@ def grafico_mensal(entregues, ano):
     )
     st.altair_chart(grafico, width="stretch")
 
-# Faturamento do mês atual e de todo o histórico, e a quantidade e o ticket médio do período escolhido
-def indicadores(do_periodo, todas):
+# Faturamento de hoje e do mês atual, a quantidade e o ticket médio do período escolhido e,
+# com o período "Todos", o faturamento geral desde o início
+def indicadores(do_periodo, todas, ano):
+    hoje = date.today()
+    do_dia = todas[todas["data_entrega"] == hoje.isoformat()]
+    do_mes = todas[todas["data_entrega"].str.startswith(hoje.isoformat()[:7])]
     total = do_periodo["valor"].sum()
-    mes_atual = date.today().isoformat()[:7]
-    do_mes = todas[todas["data_entrega"].str.startswith(mes_atual)]
-    mes, geral, quantidade, ticket = st.columns(4)
-    mes.metric(
+    colunas = iter(st.columns(5 if ano == TODOS else 4))
+    next(colunas).metric(
+        "Faturamento do dia", reais(do_dia["valor"].sum()), border=True,
+        help=f"{len(do_dia)} OS entregues hoje ({hoje.strftime('%d/%m/%Y')})",
+    )
+    next(colunas).metric(
         "Faturamento do mês", reais(do_mes["valor"].sum()), border=True,
-        help=f"{len(do_mes)} OS entregues em {MESES[date.today().month - 1]}/{date.today().year}",
+        help=f"{len(do_mes)} OS entregues em {MESES[hoje.month - 1]}/{hoje.year}",
     )
-    geral.metric(
-        "Faturamento total", reais(todas["valor"].sum()), border=True,
-        help=f"{len(todas)} OS entregues desde o início",
-    )
-    quantidade.metric("OS entregues", len(do_periodo), border=True)
-    ticket.metric(
+    if ano == TODOS:
+        next(colunas).metric(
+            "Faturamento geral", reais(total), border=True,
+            help=f"{len(todas)} OS entregues desde o início",
+        )
+    next(colunas).metric("OS entregues", len(do_periodo), border=True)
+    next(colunas).metric(
         "Ticket médio", reais(total // len(do_periodo)) if len(do_periodo) else "—", border=True
     )
 
@@ -124,7 +131,7 @@ def mostrar():
     if ano != TODOS:
         do_periodo = entregues[entregues["data_entrega"].str.startswith(ano)]
 
-    indicadores(do_periodo, entregues)
+    indicadores(do_periodo, entregues, ano)
     st.subheader("Por mês")
     grafico_mensal(do_periodo, ano)
     st.subheader("OS entregues no período")

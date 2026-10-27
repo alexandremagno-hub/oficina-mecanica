@@ -15,8 +15,9 @@ Protótipo de sistema de gestão de ordens de serviço (OS) para uma oficina mec
 - Na lista de OS, cada funcionário vê só as entregas que abriu ou concluiu ("Minhas entregas");
   o administrador vê todas
 - Resumo com a quantidade de OS em cada situação
-- Página de faturamento: faturamento do mês e total, OS entregues e ticket médio, gráfico
-  mensal separando mão de obra e peças e lista das OS entregues, com filtro por ano
+- Página de faturamento: faturamento do dia e do mês (e o geral com o período "Todos"), OS
+  entregues e ticket médio, gráfico mensal separando mão de obra e peças e lista das OS
+  entregues, com filtro por ano
 - Tela única de ordens de serviço, com busca por nome, placa ou CPF, filtro por situação e
   ordenação ao clicar no cabeçalho das colunas
 - Edição e exclusão (com confirmação) da OS selecionada na tabela
