@@ -48,7 +48,8 @@ def responsaveis(pedido):
         texto += f" · concluída por {nome(pedido['nome_conclusao'])}"
     return texto
 
-# Funcionários veem só as OS entregues que abriram ou concluíram; o administrador vê todas
+# Funcionários veem só as OS entregues que eles abriram ou concluíram (mesmo que a outra
+# parte tenha sido feita por outro funcionário); o administrador vê todas
 def entregas_permitidas(pedidos):
     if st.session_state.get("admin", False):
         return pedidos

@@ -10,7 +10,7 @@ from paginas.ordens import carregar_pedidos, formatar_data
 from paginas.valores import valores_atuais
 
 MESES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"]
-TODOS = "Todos"
+TODOS_MESES = "Todos os meses"
 
 # Cores das partes do faturamento no gráfico
 CORES = {"Mão de obra": "#2a78d6", "Peças": "#eb6834"}
@@ -25,34 +25,44 @@ def separar_valores(pedidos):
     pedidos["valor"] = pedidos["valor"].astype(int)
     return pedidos
 
+# "2026-11" -> "nov/2026"
+def nome_mes(mes):
+    return mes if mes == TODOS_MESES else f"{MESES[int(mes[5:]) - 1]}/{mes[:4]}"
+
 def reais(centavos):
     return f"R$ {formatar_reais(int(centavos))}"
 
-# Faturamento de cada mês do período, separado em mão de obra e peças (meses sem OS ficam zerados)
-def grafico_mensal(entregues, ano):
-    if ano == TODOS:
-        inicio, fim = entregues["data_entrega"].min()[:7], entregues["data_entrega"].max()[:7]
+# Faturamento separado em mão de obra e peças: por mês, de janeiro a dezembro, ou por dia
+# quando um mês é escolhido (meses ou dias sem OS ficam zerados)
+def grafico(entregues, mes):
+    if mes != TODOS_MESES:
+        periodos = pd.period_range(f"{mes}-01", pd.Period(mes, freq="M").end_time.date(), freq="D")
+        tamanho, rotulo, unidade = 10, lambda dia: f"{dia.day:02d}", "dia"
     else:
-        inicio, fim = f"{ano}-01", f"{ano}-12"
-    meses = pd.period_range(inicio, fim, freq="M")
-    por_mes = (
-        entregues.assign(mes=entregues["data_entrega"].str[:7])
-        .groupby("mes")[["mao", "pecas_total"]].sum()
-        .reindex([str(mes) for mes in meses], fill_value=0)
+        # Ano inteiro, de janeiro a dezembro (de todos os anos com entregas, se houver mais de um)
+        inicio = f"{entregues['data_entrega'].min()[:4]}-01"
+        fim = f"{entregues['data_entrega'].max()[:4]}-12"
+        periodos = pd.period_range(inicio, fim, freq="M")
+        tamanho, rotulo, unidade = 7, lambda m: f"{MESES[m.month - 1]}/{str(m.year)[2:]}", "mês"
+    eixo = "Dia" if unidade == "dia" else "Mês"
+    por_periodo = (
+        entregues.assign(periodo=entregues["data_entrega"].str[:tamanho])
+        .groupby("periodo")[["mao", "pecas_total"]].sum()
+        .reindex([str(p) for p in periodos], fill_value=0)
     )
     dados = pd.DataFrame([
         {
-            "Mês": f"{MESES[mes.month - 1]}/{str(mes.year)[2:]}",
+            eixo: rotulo(periodo),
             "Parte": parte,
             "Valor": linha[coluna] / 100,
             "Valor (R$)": formatar_reais(int(linha[coluna])),
-            "Total do mês (R$)": formatar_reais(int(linha["mao"] + linha["pecas_total"])),
+            f"Total do {unidade} (R$)": formatar_reais(int(linha["mao"] + linha["pecas_total"])),
         }
-        for mes, (_, linha) in zip(meses, por_mes.iterrows())
+        for periodo, (_, linha) in zip(periodos, por_periodo.iterrows())
         for parte, coluna in (("Mão de obra", "mao"), ("Peças", "pecas_total"))
     ])
     grafico = alt.Chart(dados).mark_bar().encode(
-        x=alt.X("Mês:N", sort=None, title=None, axis=alt.Axis(labelAngle=0)),
+        x=alt.X(f"{eixo}:N", sort=None, title=None, axis=alt.Axis(labelAngle=0)),
         # Milhar com ponto, no padrão brasileiro
         y=alt.Y("Valor:Q", title="R$", stack="zero", axis=alt.Axis(
             labelExpr="replace(format(datum.value, ',.0f'), ',', '.')",
@@ -62,27 +72,27 @@ def grafico_mensal(entregues, ano):
             scale=alt.Scale(domain=list(CORES), range=list(CORES.values())),
         ),
         order=alt.Order("Parte:N"),
-        tooltip=["Mês", "Parte", "Valor (R$)", "Total do mês (R$)"],
+        tooltip=[eixo, "Parte", "Valor (R$)", f"Total do {unidade} (R$)"],
     )
     st.altair_chart(grafico, width="stretch")
 
-# Faturamento de hoje e do mês atual, a quantidade e o ticket médio do período escolhido e,
-# com o período "Todos", o faturamento geral desde o início
-def indicadores(do_periodo, todas, ano):
+# Faturamento de hoje, o faturamento do mês escolhido (ou o geral desde o
+# início, com "Todos os meses") e a quantidade e o ticket médio do que está filtrado
+def indicadores(do_periodo, todas, mes):
     hoje = date.today()
     do_dia = todas[todas["data_entrega"] == hoje.isoformat()]
-    do_mes = todas[todas["data_entrega"].str.startswith(hoje.isoformat()[:7])]
     total = do_periodo["valor"].sum()
-    colunas = iter(st.columns(5 if ano == TODOS else 4))
+    colunas = iter(st.columns(4))
     next(colunas).metric(
         "Faturamento do dia", reais(do_dia["valor"].sum()), border=True,
         help=f"{len(do_dia)} OS entregues hoje ({hoje.strftime('%d/%m/%Y')})",
     )
-    next(colunas).metric(
-        "Faturamento do mês", reais(do_mes["valor"].sum()), border=True,
-        help=f"{len(do_mes)} OS entregues em {MESES[hoje.month - 1]}/{hoje.year}",
-    )
-    if ano == TODOS:
+    if mes != TODOS_MESES:
+        next(colunas).metric(
+            f"Faturamento de {nome_mes(mes)}", reais(total), border=True,
+            help=f"{len(do_periodo)} OS entregues em {nome_mes(mes)}",
+        )
+    else:
         next(colunas).metric(
             "Faturamento geral", reais(total), border=True,
             help=f"{len(todas)} OS entregues desde o início",
@@ -91,6 +101,72 @@ def indicadores(do_periodo, todas, ano):
     next(colunas).metric(
         "Ticket médio", reais(total // len(do_periodo)) if len(do_periodo) else "—", border=True
     )
+
+# Entregas e faturamento de cada funcionário no período, contando cada OS para quem concluiu o
+# serviço. Ordena por entregas e, no empate, pelo faturamento. OS sem esse registro (antigas)
+# ficam de fora
+def ranking_equipe(entregues):
+    feitas = entregues[entregues["nome_conclusao"].notna()]
+    return (
+        feitas.groupby("nome_conclusao")
+        .agg(entregas=("id", "size"), faturado=("valor", "sum"), mao=("mao", "sum"))
+        .sort_values(["entregas", "faturado"], ascending=False)
+        .reset_index()
+    )
+
+# Mês da tela toda, entre o mês atual (mesmo sem entregas ainda) e os meses que tiveram
+# entregas, de todos os anos (o mais recente primeiro). Começa no mês atual
+def escolher_mes(entregues):
+    atual = date.today().isoformat()[:7]
+    meses = sorted(set(entregues["data_entrega"].str[:7]) | {atual}, reverse=True)
+    return st.selectbox(
+        "Mês", meses + [TODOS_MESES], index=meses.index(atual),
+        format_func=nome_mes, key="mes_dashboard",
+    )
+
+# Destaque para quem mais entregou no mês escolhido e o ranking de toda a equipe
+def desempenho(entregues, mes):
+    ranking = ranking_equipe(entregues)
+    sem_registro = len(entregues) - int(ranking["entregas"].sum())
+    if ranking.empty:
+        st.info("Nenhuma entrega do período tem o funcionário que concluiu registrado.",
+                icon=":material/info:")
+        return
+
+    melhor = ranking.iloc[0]
+    empatados = ranking[ranking["entregas"] == melhor["entregas"]]
+    with st.container(border=True):
+        titulo = ("Destaque do período" if mes == TODOS_MESES
+                  else f"Destaque de {nome_mes(mes)}")
+        st.markdown(f"#### :material/emoji_events: {titulo}: {melhor['nome_conclusao']}")
+        if len(empatados) > 1:
+            outros = ", ".join(empatados["nome_conclusao"].iloc[1:])
+            st.caption(f"Empatado em entregas com {outros}; fica à frente quem faturou mais")
+        entregas, faturado, mao, ticket = st.columns(4)
+        entregas.metric(
+            "Entregas", int(melhor["entregas"]),
+            help=f"{melhor['entregas'] / ranking['entregas'].sum():.0%} das entregas da equipe",
+        )
+        faturado.metric("Faturamento", reais(melhor["faturado"]))
+        mao.metric("Mão de obra", reais(melhor["mao"]))
+        ticket.metric("Ticket médio", reais(melhor["faturado"] // melhor["entregas"]))
+
+    st.dataframe(
+        pd.DataFrame({
+            "Posição": [f"{posicao}º" for posicao in range(1, len(ranking) + 1)],
+            "Funcionário": ranking["nome_conclusao"],
+            "Entregas": ranking["entregas"],
+            "Faturamento (R$)": ranking["faturado"].map(formatar_reais),
+            "Ticket médio (R$)": (ranking["faturado"] // ranking["entregas"]).map(formatar_reais),
+        }),
+        hide_index=True, width="stretch",
+        column_config={"Entregas": st.column_config.ProgressColumn(
+            "Entregas", format="%d", min_value=0, max_value=int(ranking["entregas"].max()),
+        )},
+    )
+    if sem_registro:
+        st.caption(f"{sem_registro} OS entregues sem o funcionário que concluiu registrado "
+                   "não entram no ranking")
 
 # Tabela com as OS que entraram no faturamento do período
 def tabela(entregues):
@@ -109,9 +185,10 @@ def tabela(entregues):
         hide_index=True, width="stretch",
     )
 
-# Página com o faturamento das OS entregues, contado pela data de entrega
+# Dashboard com o faturamento das OS entregues, contado pela data de entrega, e o desempenho
+# da equipe; o mês escolhido no topo vale para a tela toda
 def mostrar():
-    st.title("Faturamento")
+    st.title("Dashboard")
     st.caption("Conta as OS entregues, pela data de entrega")
 
     pedidos = carregar_pedidos()
@@ -122,17 +199,19 @@ def mostrar():
         return
     entregues = separar_valores(entregues).sort_values(["data_entrega", "id"], ascending=False)
 
-    anos = sorted(entregues["data_entrega"].str[:4].unique(), reverse=True)
-    atual = str(date.today().year)
-    ano = st.segmented_control(
-        "Período", anos + [TODOS], default=atual if atual in anos else anos[0],
-    ) or TODOS
+    filtro, _ = st.columns([1, 3])
+    with filtro:
+        mes = escolher_mes(entregues)
     do_periodo = entregues
-    if ano != TODOS:
-        do_periodo = entregues[entregues["data_entrega"].str.startswith(ano)]
+    if mes != TODOS_MESES:
+        do_periodo = entregues[entregues["data_entrega"].str.startswith(mes)]
 
-    indicadores(do_periodo, entregues, ano)
-    st.subheader("Por mês")
-    grafico_mensal(do_periodo, ano)
-    st.subheader("OS entregues no período")
+    indicadores(do_periodo, entregues, mes)
+    st.subheader("Desempenho da equipe")
+    st.caption("Cada entrega conta para o funcionário que concluiu o serviço")
+    desempenho(do_periodo, mes)
+    st.subheader("Por dia" if mes != TODOS_MESES else "Por mês")
+    grafico(do_periodo, mes)
+    st.subheader("Todas as OS entregues" if mes == TODOS_MESES
+                 else f"OS entregues em {nome_mes(mes)}")
     tabela(do_periodo)

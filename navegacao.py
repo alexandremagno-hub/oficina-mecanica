@@ -12,7 +12,7 @@ ANDAMENTO = st.Page(
 )
 ABRIR = st.Page(abrir_os.mostrar, title="Abrir OS", icon=":material/add_circle:", url_path="abrir")
 FATURAMENTO = st.Page(
-    faturamento.mostrar, title="Faturamento", icon=":material/payments:", url_path="faturamento",
+    faturamento.mostrar, title="Dashboard", icon=":material/dashboard:", url_path="dashboard",
 )
 FUNCIONARIOS = st.Page(
     funcionarios.mostrar, title="Funcionários", icon=":material/badge:", url_path="funcionarios",

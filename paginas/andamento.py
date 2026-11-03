@@ -3,7 +3,9 @@ import streamlit as st
 
 from banco import CONCLUIDO, ENTREGUE, SITUACOES
 from paginas.formulario import avisar
-from paginas.ordens import carregar_pedidos, com_icone, formatar_data, formatar_valor, responsaveis
+from paginas.ordens import (
+    carregar_pedidos, com_icone, entregas_permitidas, formatar_data, formatar_valor, responsaveis,
+)
 from paginas.valores import formulario_valores
 
 # Quantas OS entregues aparecem no quadro (as mais recentes); as demais ficam na lista de OS
@@ -58,7 +60,7 @@ def mostrar():
     st.title("Andamento dos serviços")
     st.caption("Use **Avançar** para levar cada OS para a próxima etapa")
 
-    pedidos = carregar_pedidos()
+    pedidos = entregas_permitidas(carregar_pedidos())
     colunas = st.columns(len(SITUACOES))
     for etapa, (coluna, situacao) in enumerate(zip(colunas, SITUACOES)):
         da_etapa = pedidos[pedidos["situacao"] == situacao]

@@ -11,16 +11,18 @@ Protótipo de sistema de gestão de ordens de serviço (OS) para uma oficina mec
 - Abertura de ordens de serviço (cliente, veículo, placa e serviço)
 - Registro automático das datas de entrada e de entrega
 - Registro de quem abriu cada OS e de quem concluiu o serviço (o funcionário conectado no
-  momento), exibido na lista de OS, no quadro de andamento e no faturamento
-- Na lista de OS, cada funcionário vê só as entregas que abriu ou concluiu ("Minhas entregas");
-  o administrador vê todas
+  momento), exibido na lista de OS, no quadro de andamento e no dashboard
+- Na lista de OS e no quadro de andamento, cada funcionário vê só as entregas que abriu ou
+  concluiu ("Minhas entregas"); o administrador vê todas
 - Resumo com a quantidade de OS em cada situação
-- Página de faturamento: faturamento do dia e do mês (e o geral com o período "Todos"), OS
-  entregues e ticket médio, gráfico mensal separando mão de obra e peças e lista das OS
-  entregues, com filtro por ano
+- Dashboard (só o administrador): faturamento do dia e do mês escolhido (ou o
+  geral com "Todos os meses"), OS entregues e ticket médio, destaque do funcionário que mais
+  entregou e ranking da equipe, gráfico separando mão de obra e peças (por mês, ou por dia com
+  um mês escolhido) e lista das OS entregues, tudo com um único filtro de mês no topo
 - Tela única de ordens de serviço, com busca por nome, placa ou CPF, filtro por situação e
   ordenação ao clicar no cabeçalho das colunas
-- Edição e exclusão (com confirmação) da OS selecionada na tabela
+- Edição e exclusão da OS numa janela por cima da tela, com confirmação mostrando o que vai
+  mudar antes de gravar (também na edição dos funcionários)
 - Quadro de andamento com uma coluna por situação, onde cada OS avança etapa por etapa
   (Na fila → Em andamento → Concluído → Entregue) com um clique; ao concluir, o sistema pergunta
   a mão de obra e as peças colocadas e calcula o total (que pode ser corrigido depois na OS)
@@ -56,7 +58,7 @@ banco.py         acesso ao banco SQLite
 formatos.py      CPF, nomes, busca e validação dos dados da OS
 moeda.py         conversão e formatação de valores em reais
 senhas.py        hash e conferência das senhas dos funcionários
-paginas/         uma função por página (login, ordens, andamento, faturamento, funcionarios, abrir_os), o formulário da OS
+paginas/         uma função por página (login, ordens, andamento, faturamento = dashboard, funcionarios, abrir_os), o formulário da OS
                  e o de mão de obra e peças (valores)
 imagens/         logo da barra lateral
 .streamlit/      tema da interface
