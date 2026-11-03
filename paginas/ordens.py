@@ -5,9 +5,9 @@ from banco import CAMPOS_LISTA, CONCLUIDO, ENTREGUE, SITUACOES
 from formatos import corresponde, formatar_cpf
 from moeda import formatar_reais
 from paginas.formulario import (
-    avisar, campos_pedido, mostrar_erro, preencher, valores_validados,
+    CAMPOS, avisar, campos_pedido, mostrar_erro, preencher, pergunta, valores_validados,
 )
-from paginas.valores import formulario_valores, resumo_valores
+from paginas.valores import adicionar_peca, campos_valores, resumo_valores, valores_atuais
 
 PREFIXO = "editar"
 
@@ -56,9 +56,17 @@ def entregas_permitidas(pedidos):
     minhas = (pedidos["aberta_por"] == eu) | (pedidos["concluida_por"] == eu)
     return pedidos[(pedidos["situacao"] != ENTREGUE) | minhas].reset_index(drop=True)
 
-# Fecha o painel de edição depois de salvar ou excluir
+# Fecha a janela de edição depois de salvar, excluir ou ao clicar fora dela
 def limpar_selecao():
     st.session_state.pop("selecao", None)
+    st.session_state.pop("modo_os", None)
+    st.session_state.pop("pendente_os", None)
+    st.session_state.pop(f"{PREFIXO}_id", None)
+
+# O que a janela de edição mostra: "editar" (dados da OS), "valores", "excluir" ou
+# "confirmar"/"confirmar_valores" (a pergunta antes de gravar as alterações)
+def mudar_modo(modo):
+    st.session_state.modo_os = modo
 
 # Indicadores por situação
 def resumo(pedidos):
@@ -89,6 +97,7 @@ def alternar_detalhes(id_pedido):
 
 def selecionar(id_pedido):
     st.session_state.selecao = id_pedido
+    st.session_state.modo_os = "editar"
 
 # Lista de OS com a coluna extra da linha principal (campo e formatação) e os detalhes;
 # devolve a OS selecionada (ou None)
@@ -100,7 +109,6 @@ def lista(visiveis, extra, detalhes):
     for coluna, campo in zip(st.columns(LARGURAS), resumidas):
         coluna.caption(f"**{TITULOS[campo]}**")
     expandidas = st.session_state.get("expandidas", set())
-    selecionada = st.session_state.get("selecao")
     for posicao, pedido in enumerate(visiveis.itertuples(), start=1):
         id_pedido = int(pedido.id)
         aberta = id_pedido in expandidas
@@ -120,48 +128,179 @@ def lista(visiveis, extra, detalhes):
                     coluna.write(formatar(getattr(pedido, campo)))
                 st.caption(responsaveis(pedido._asdict()))
                 st.button(
-                    "Editando" if id_pedido == selecionada else "Editar", key=f"editar_{id_pedido}",
-                    icon=":material/edit:", type="primary" if id_pedido == selecionada else "secondary",
+                    "Editar", key=f"editar_{id_pedido}", icon=":material/edit:",
                     on_click=selecionar, args=(id_pedido,),
                 )
     # A OS escolhida pode estar na outra lista ou ter sumido por causa da busca ou do filtro
-    escolhida = visiveis[visiveis["id"] == selecionada]
+    escolhida = visiveis[visiveis["id"] == st.session_state.get("selecao")]
     return escolhida.iloc[0] if not escolhida.empty else None
 
-def salvar(id_pedido):
+# Lista de (campo, antes, depois) só com o que mudou
+def diferencas(antes, depois):
+    return [(campo, a, d) for campo, a, d in zip(antes, antes.values(), depois) if a != d]
+
+# Ao clicar em salvar, nada é gravado ainda: guarda o que foi digitado e pergunta antes
+def salvar(pedido):
     valores = valores_validados(PREFIXO)
     if valores is None:
         return
-    st.session_state.banco.atualizar_pedido(id_pedido, *valores)
+    antes = {
+        "CPF": formatar_cpf(pedido["cpf"]), "Nome": pedido["nome"], "Veículo": pedido["veiculo"],
+        "Placa": pedido["placa"], "Serviço": pedido["servico"],
+    }
+    mudancas = diferencas(antes, (formatar_cpf(valores[0]), *valores[1:]))
+    if not mudancas:
+        limpar_selecao()
+        avisar(f"Nenhuma alteração feita na OS nº {int(pedido['id'])}.")
+        return
+    st.session_state.pendente_os = {
+        "valores": valores, "mudancas": mudancas,
+        "textos": [st.session_state[f"{PREFIXO}_{campo}"] for campo, _, _ in CAMPOS],
+    }
+    mudar_modo("confirmar")
+
+# Cancelar a confirmação volta para o formulário com o que tinha sido digitado (o Streamlit
+# descarta os campos enquanto eles não aparecem na tela)
+def voltar_dados(_id_pedido=None):
+    preencher(PREFIXO, st.session_state.pop("pendente_os")["textos"])
+    mudar_modo("editar")
+
+def gravar_dados(id_pedido):
+    st.session_state.banco.atualizar_pedido(id_pedido, *st.session_state.pendente_os["valores"])
     limpar_selecao()
     avisar(f"OS nº {id_pedido} atualizada!")
 
-# Corrigir a mão de obra e as peças de uma OS já concluída
-@st.dialog("Valores do serviço", width="large")
-def alterar_valores(pedido):
-    if formulario_valores(pedido, "Salvar valores", ":material/save:"):
-        limpar_selecao()
-        avisar(f"Valores da OS nº {int(pedido['id'])} atualizados!")
-        st.rerun()
+def confirmar_dados(id_pedido):
+    pergunta(
+        f"Quer mesmo fazer estas alterações na OS nº **{id_pedido}**?",
+        st.session_state.pendente_os["mudancas"], voltar_dados, gravar_dados, (id_pedido,),
+    )
 
-@st.dialog("Excluir ordem de serviço")
+# Peças em uma linha, para mostrar na confirmação: "2× Filtro (R$ 35,00), 1× Vela (R$ 20,00)"
+def descrever_pecas(pecas):
+    return ", ".join(
+        f"{quantidade}× {descricao} (R$ {formatar_reais(unitario)})"
+        for descricao, quantidade, unitario in pecas
+    ) or "nenhuma"
+
+def descrever_valores(mao_de_obra, pecas):
+    total = (mao_de_obra or 0) + sum(q * v for _, q, v in pecas)
+    return (
+        f"R$ {formatar_reais(mao_de_obra)}" if mao_de_obra is not None else "—",
+        descrever_pecas(pecas), f"R$ {formatar_reais(total)}",
+    )
+
+# Corrigir a mão de obra e as peças de uma OS já concluída (dentro da janela de edição,
+# já que o Streamlit não abre uma janela dentro de outra)
+def alterar_valores(pedido):
+    id_pedido = int(pedido["id"])
+    st.button("Voltar", icon=":material/arrow_back:", type="tertiary",
+              on_click=mudar_modo, args=("editar",))
+    st.markdown(f"**{pedido['nome']}**  \n{pedido['servico']}")
+    valores, erro = campos_valores(pedido)
+    if not st.button("Salvar valores", type="primary", icon=":material/save:", width="stretch"):
+        return
+    if erro:
+        st.error(erro, icon=":material/error:")
+        return
+    rotulos = ("Mão de obra", "Peças", "Total")
+    mudancas = diferencas(
+        dict(zip(rotulos, descrever_valores(*valores_atuais(pedido)))), descrever_valores(*valores)
+    )
+    if not mudancas:
+        limpar_selecao()
+        avisar(f"Nenhuma alteração feita nos valores da OS nº {id_pedido}.")
+    else:
+        st.session_state.pendente_os = {"valores": valores, "mudancas": mudancas, "id": id_pedido}
+        mudar_modo("confirmar_valores")
+    st.rerun()
+
+# Cancelar volta para os campos de valores com o que tinha sido digitado
+def voltar_valores(_id_pedido=None):
+    pendente = st.session_state.pop("pendente_os")
+    id_pedido, (mao_de_obra, pecas) = pendente["id"], pendente["valores"]
+    st.session_state[f"mao_de_obra_{id_pedido}"] = formatar_reais(mao_de_obra)
+    st.session_state[f"linhas_{id_pedido}"] = []
+    for descricao, quantidade, unitario in pecas:
+        adicionar_peca(id_pedido, descricao, quantidade, formatar_reais(unitario))
+    mudar_modo("valores")
+
+def gravar_valores(id_pedido):
+    st.session_state.banco.definir_valores(id_pedido, *st.session_state.pendente_os["valores"])
+    limpar_selecao()
+    avisar(f"Valores da OS nº {id_pedido} atualizados!")
+
+def confirmar_valores(id_pedido):
+    pergunta(
+        f"Quer mesmo alterar os valores da OS nº **{id_pedido}**?",
+        st.session_state.pendente_os["mudancas"], voltar_valores, gravar_valores, (id_pedido,),
+    )
+
 def confirmar_exclusao(id_pedido, nome, placa):
     st.write(f"Excluir a OS nº **{id_pedido}** de **{nome}** (placa {placa})?")
     st.caption("Essa ação não pode ser desfeita.")
     cancelar, excluir = st.columns(2)
-    if cancelar.button("Cancelar", width="stretch"):
-        st.rerun()
+    cancelar.button("Cancelar", width="stretch", on_click=mudar_modo, args=("editar",))
     if excluir.button("Excluir", type="primary", icon=":material/delete:", width="stretch"):
         st.session_state.banco.excluir_pedido(id_pedido)
         limpar_selecao()
         avisar(f"OS nº {id_pedido} excluída!")
         st.rerun()
 
-# Formulário de edição e botão de exclusão da OS selecionada
+def formulario_edicao(pedido, id_pedido):
+    titulo, excluir = st.columns([4, 1], vertical_alignment="center")
+    titulo.subheader(f"OS nº {id_pedido} · {pedido['nome']}")
+    excluir.button("Excluir", icon=":material/delete:", width="stretch",
+                   on_click=mudar_modo, args=("excluir",))
+    with st.form(f"form_{PREFIXO}", border=False):
+        campos_pedido(PREFIXO)
+        mostrar_erro(PREFIXO)
+        # Cancelar fecha a janela sem gravar nada (para quem clicou em Editar sem querer)
+        cancelar, salvar_botao = st.columns(2)
+        cancelar.form_submit_button(
+            "Cancelar", icon=":material/close:", width="stretch", on_click=limpar_selecao,
+        )
+        salvar_botao.form_submit_button(
+            "Salvar alterações", type="primary", icon=":material/save:", width="stretch",
+            on_click=salvar, args=(pedido,),
+        )
+    # Os valores são informados ao concluir o serviço e podem ser corrigidos depois
+    if pd.notna(pedido["valor"]):
+        st.markdown("**Valores do serviço**")
+        st.markdown(resumo_valores(pedido))
+        st.button("Alterar valores", icon=":material/edit:",
+                  on_click=mudar_modo, args=("valores",))
+    st.caption(
+        f"Situação: {com_icone(pedido['situacao'])} (mude na página Andamento) · "
+        f"Entrada: {formatar_data(pedido['data_entrada'])} · "
+        f"Entrega: {formatar_data(pedido['data_entrega'])}  \n{responsaveis(pedido)}"
+    )
+
+def confirmando():
+    return st.session_state.get("modo_os", "editar").startswith("confirmar")
+
+# Janela pequena, no meio da tela, que pergunta antes de gravar as alterações da OS. Ao
+# cancelar ou confirmar, recarrega a página para voltar à edição ou fechar
+@st.dialog("Confirmar alteração", on_dismiss=limpar_selecao)
+def confirmacao(pedido):
+    if "selecao" not in st.session_state or not confirmando():
+        st.rerun()
+    if st.session_state.modo_os == "confirmar":
+        confirmar_dados(int(pedido["id"]))
+    else:
+        confirmar_valores(int(pedido["id"]))
+
+# Janela por cima da página com a edição da OS selecionada; fechá-la desfaz a seleção
+@st.dialog("Editar ordem de serviço", width="large", on_dismiss=limpar_selecao)
 def painel(pedido):
+    # Depois de gravar, a seleção some: fecha a janela recarregando a página inteira. Ao pedir
+    # a confirmação, recarrega também, para a página trocar esta janela pela pequena
+    if "selecao" not in st.session_state or confirmando():
+        st.rerun()
     id_pedido = int(pedido["id"])
-    # Preenche os campos só quando outra OS é selecionada, para não apagar o que foi digitado
-    if st.session_state.get(f"{PREFIXO}_id") != id_pedido:
+    # Preenche os campos ao abrir a janela, para não apagar o que foi digitado; preenche de novo
+    # se o Streamlit tiver descartado os campos (ao passar pelos valores ou pela exclusão)
+    if st.session_state.get(f"{PREFIXO}_id") != id_pedido or f"{PREFIXO}_cpf" not in st.session_state:
         st.session_state[f"{PREFIXO}_id"] = id_pedido
         st.session_state[f"{PREFIXO}_erro"] = None
         preencher(PREFIXO, (
@@ -169,29 +308,13 @@ def painel(pedido):
             pedido["servico"],
         ))
 
-    with st.container(border=True):
-        titulo, excluir = st.columns([4, 1], vertical_alignment="center")
-        titulo.subheader(f"OS nº {id_pedido} · {pedido['nome']}")
-        if excluir.button("Excluir", icon=":material/delete:", width="stretch"):
-            confirmar_exclusao(id_pedido, pedido["nome"], pedido["placa"])
-        with st.form(f"form_{PREFIXO}", border=False):
-            campos_pedido(PREFIXO)
-            mostrar_erro(PREFIXO)
-            st.form_submit_button(
-                "Salvar alterações", type="primary", icon=":material/save:",
-                on_click=salvar, args=(id_pedido,),
-            )
-        # Os valores são informados ao concluir o serviço e podem ser corrigidos depois
-        if pd.notna(pedido["valor"]):
-            st.markdown("**Valores do serviço**")
-            st.markdown(resumo_valores(pedido))
-            if st.button("Alterar valores", icon=":material/edit:"):
-                alterar_valores(pedido.to_dict())
-        st.caption(
-            f"Situação: {com_icone(pedido['situacao'])} (mude na página Andamento) · "
-            f"Entrada: {formatar_data(pedido['data_entrada'])} · "
-            f"Entrega: {formatar_data(pedido['data_entrega'])}  \n{responsaveis(pedido)}"
-        )
+    modo = st.session_state.get("modo_os", "editar")
+    if modo == "valores":
+        alterar_valores(pedido.to_dict())
+    elif modo == "excluir":
+        confirmar_exclusao(id_pedido, pedido["nome"], pedido["placa"])
+    else:
+        formulario_edicao(pedido, id_pedido)
 
 # Página com a lista de ordens de serviço: resumo, busca, filtro por situação, edição e exclusão
 def mostrar():
@@ -241,4 +364,4 @@ def mostrar():
     )
     pedido = pedido_aberto if pedido_aberto is not None else pedido_entregue
     if pedido is not None:
-        painel(pedido)
+        confirmacao(pedido) if confirmando() else painel(pedido)

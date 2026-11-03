@@ -37,6 +37,23 @@ def mostrar_erro(prefixo):
     if erro := st.session_state.get(f"{prefixo}_erro"):
         st.error(erro, icon=":material/error:")
 
+# Conteúdo da janela pequena de confirmação: a pergunta, o que vai mudar ("de … para …") e
+# os botões para cancelar ou confirmar, tudo centralizado
+def pergunta(texto, mudancas, cancelar, confirmar, args=()):
+    st.markdown(texto, text_alignment="center")
+    with st.container(border=True):
+        for campo, antes, depois in mudancas:
+            st.markdown(f"**{campo}**  \n~~{antes or '—'}~~ → **{depois or '—'}**",
+                        text_alignment="center")
+    botao_cancelar, botao_confirmar = st.columns(2)
+    botao_cancelar.button(
+        "Cancelar", icon=":material/close:", width="stretch", on_click=cancelar, args=args,
+    )
+    botao_confirmar.button(
+        "Confirmar", type="primary", icon=":material/check:", width="stretch",
+        on_click=confirmar, args=args,
+    )
+
 # Mensagem exibida como notificação na próxima execução da página
 def avisar(mensagem):
     st.session_state.aviso = mensagem

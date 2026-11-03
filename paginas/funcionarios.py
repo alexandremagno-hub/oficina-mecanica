@@ -6,7 +6,7 @@ import streamlit as st
 
 from banco import COLUNAS_FUNCIONARIOS
 from formatos import formatar_nome, validar_funcionario, validar_senha
-from paginas.formulario import avisar
+from paginas.formulario import avisar, pergunta
 from paginas.ordens import formatar_data
 
 # Funções sugeridas na lista; dá para digitar outra
@@ -90,9 +90,9 @@ def formulario_novo():
             "Cadastrar", type="primary", icon=":material/person_add:", on_click=cadastrar
         )
 
-# Gravar as alterações; os campos do funcionário são descartados para voltarem com os
-# dados do banco da próxima vez que ele for aberto
-def salvar(id_funcionario):
+# Ao clicar em salvar, nada é gravado ainda: guarda o que foi digitado e pergunta antes
+def salvar(funcionario):
+    id_funcionario = int(funcionario.id)
     chave = lambda campo: f"editar_func_{campo}_{id_funcionario}"
     nome, funcao = texto(chave("nome")), texto(chave("funcao"))
     senha = st.session_state[chave("senha")]
@@ -101,39 +101,105 @@ def salvar(id_funcionario):
         erro = "Preencha o nome e a função!"
     elif senha or st.session_state[chave("confirmacao")]:
         erro = validar_senha(senha, st.session_state[chave("confirmacao")])
+    st.session_state[chave("erro")] = erro
     if erro:
-        st.session_state[chave("erro")] = erro
         return
-    st.session_state.banco.atualizar_funcionario(
-        id_funcionario, formatar_nome(nome), funcao, data_iso(chave("admissao")),
-        st.session_state[chave("ativo")], senha or None,
-    )
-    for campo in CAMPOS_EDICAO + ["erro"]:
-        st.session_state.pop(chave(campo), None)
-    recomecar_tabela()
-    avisar(f"Dados de {formatar_nome(nome)} atualizados!")
+    dados = (formatar_nome(nome), funcao, data_iso(chave("admissao")),
+             st.session_state[chave("ativo")], senha or None)
+    situacao = lambda ativo: "Ativo" if ativo else "Inativo"
+    antes = [
+        ("Nome", funcionario.nome, dados[0]),
+        ("Função", funcionario.funcao, dados[1]),
+        ("Admissão", formatar_data(funcionario.data_admissao if pd.notna(funcionario.data_admissao) else ""),
+         formatar_data(dados[2] or "")),
+        ("Situação", situacao(funcionario.ativo), situacao(dados[3])),
+    ]
+    mudancas = [(campo, a, d) for campo, a, d in antes if a != d]
+    if senha:
+        mudancas.append(("Senha", "atual", "nova senha"))
+    if not mudancas:
+        fechar_edicao(id_funcionario)
+        avisar(f"Nenhuma alteração feita em {funcionario.nome}.")
+        return
+    st.session_state[chave("pendente")] = {
+        "dados": dados, "mudancas": mudancas,
+        "digitado": {campo: st.session_state[chave(campo)] for campo in CAMPOS_EDICAO},
+    }
 
+# Cancelar a confirmação volta para o formulário com o que tinha sido digitado (o Streamlit
+# descarta os campos enquanto eles não aparecem na tela)
+def voltar_edicao(id_funcionario):
+    pendente = st.session_state.pop(f"editar_func_pendente_{id_funcionario}")
+    for campo, valor in pendente["digitado"].items():
+        st.session_state[f"editar_func_{campo}_{id_funcionario}"] = valor
+
+def gravar(id_funcionario):
+    dados = st.session_state[f"editar_func_pendente_{id_funcionario}"]["dados"]
+    st.session_state.banco.atualizar_funcionario(id_funcionario, *dados)
+    fechar_edicao(id_funcionario)
+    avisar(f"Dados de {dados[0]} atualizados!")
+
+# Descarta o que foi digitado e a confirmação pendente (também ao fechar a janela no X ou
+# clicando fora); da próxima vez os campos voltam com os dados do banco
+def descartar_edicao():
+    for chave in [c for c in st.session_state if str(c).startswith("editar_func_")]:
+        del st.session_state[chave]
+    recomecar_tabela()
+
+# Fecha a janela de edição ao gravar ou cancelar
+def fechar_edicao(id_funcionario=None):
+    descartar_edicao()
+    st.session_state.fechar_funcionario = True
+
+def pendente(id_funcionario):
+    return st.session_state.get(f"editar_func_pendente_{id_funcionario}")
+
+# Janela pequena, no meio da tela, que pergunta antes de gravar. Ao cancelar ou confirmar,
+# recarrega a página para voltar à edição ou fechar
+@st.dialog("Confirmar alteração", on_dismiss=descartar_edicao)
+def confirmacao(funcionario):
+    id_funcionario = int(funcionario.id)
+    if st.session_state.pop("fechar_funcionario", False) or not pendente(id_funcionario):
+        st.rerun()
+    pergunta(
+        f"Quer mesmo fazer estas alterações em **{funcionario.nome}**?",
+        pendente(id_funcionario)["mudancas"], voltar_edicao, gravar, (id_funcionario,),
+    )
+
+# Janela por cima da página com a edição do funcionário escolhido na tabela; fechá-la
+# desfaz a seleção da tabela
+@st.dialog("Editar funcionário", width="large", on_dismiss=descartar_edicao)
 def formulario_edicao(funcionario):
+    # Depois de gravar ou cancelar, fecha a janela recarregando a página inteira
+    if st.session_state.pop("fechar_funcionario", False):
+        st.rerun()
     id_funcionario = int(funcionario.id)
     chave = lambda campo: f"editar_func_{campo}_{id_funcionario}"
+    # Ao pedir a confirmação, recarrega a página para ela trocar esta janela pela pequena
+    if pendente(id_funcionario):
+        st.rerun()
+
+    # Valores iniciais pelo estado (e não por value=/index=), já que voltar_edicao também os define
+    iniciais = {
+        "nome": funcionario.nome, "funcao": funcionario.funcao,
+        "admissao": date.fromisoformat(funcionario.data_admissao)
+        if pd.notna(funcionario.data_admissao) else None,
+        "ativo": bool(funcionario.ativo), "senha": "", "confirmacao": "",
+    }
+    for campo, valor in iniciais.items():
+        st.session_state.setdefault(chave(campo), valor)
     # Quem está usando o sistema não pode se desativar, para não ficar sem acesso
     eu_mesmo = funcionario.usuario == st.session_state.get("usuario")
-    funcoes = FUNCOES if funcionario.funcao in FUNCOES else FUNCOES + [funcionario.funcao]
-    with st.form(f"editar_funcionario_{id_funcionario}"):
-        st.subheader(f"Editar {funcionario.nome}")
+    funcoes = list(dict.fromkeys(FUNCOES + [funcionario.funcao, st.session_state[chave("funcao")]]))
+    with st.form(f"editar_funcionario_{id_funcionario}", border=False):
+        st.subheader(funcionario.nome)
         st.caption(f"Usuário de acesso: **{funcionario.usuario}**")
-        st.text_input("Nome", value=funcionario.nome, key=chave("nome"))
+        st.text_input("Nome", key=chave("nome"))
         funcao, admissao = st.columns(2)
-        funcao.selectbox(
-            "Função", funcoes, index=funcoes.index(funcionario.funcao), key=chave("funcao"),
-            accept_new_options=True,
-        )
-        admissao.date_input(
-            "Data de admissão", key=chave("admissao"), format="DD/MM/YYYY",
-            value=date.fromisoformat(funcionario.data_admissao) if pd.notna(funcionario.data_admissao) else None,
-        )
+        funcao.selectbox("Função", funcoes, key=chave("funcao"), accept_new_options=True)
+        admissao.date_input("Data de admissão", key=chave("admissao"), format="DD/MM/YYYY")
         st.toggle(
-            "Ativo", value=bool(funcionario.ativo), key=chave("ativo"), disabled=eu_mesmo,
+            "Ativo", key=chave("ativo"), disabled=eu_mesmo,
             help="Você não pode desativar a própria conta" if eu_mesmo
             else "Funcionários inativos não conseguem entrar no sistema",
         )
@@ -143,9 +209,15 @@ def formulario_edicao(funcionario):
         confirmacao.text_input("Confirmar nova senha", type="password", key=chave("confirmacao"))
         if erro := st.session_state.get(chave("erro")):
             st.error(erro, icon=":material/error:")
-        st.form_submit_button(
-            "Salvar alterações", type="primary", icon=":material/save:",
-            on_click=salvar, args=(id_funcionario,),
+        # Cancelar fecha a janela sem gravar nada (para quem clicou na linha sem querer)
+        cancelar, salvar_botao = st.columns(2)
+        cancelar.form_submit_button(
+            "Cancelar", icon=":material/close:", width="stretch",
+            on_click=fechar_edicao, args=(id_funcionario,),
+        )
+        salvar_botao.form_submit_button(
+            "Salvar alterações", type="primary", icon=":material/save:", width="stretch",
+            on_click=salvar, args=(funcionario,),
         )
 
 # Tabela dos funcionários; devolve o que foi selecionado (ou None)
@@ -178,6 +250,9 @@ def mostrar():
         st.caption(f"{ativos} ativos de {len(funcionarios)} · clique numa linha para editar")
         funcionario = tabela(funcionarios)
         if funcionario is not None:
-            formulario_edicao(funcionario)
+            if pendente(int(funcionario.id)):
+                confirmacao(funcionario)
+            else:
+                formulario_edicao(funcionario)
     with novo:
         formulario_novo()
