@@ -5,6 +5,7 @@ import streamlit as st
 from streamlit import runtime
 from streamlit.web import cli
 
+import sessao
 from banco import Banco
 from paginas import login
 
@@ -19,10 +20,13 @@ st.set_page_config(page_title="Oficina Mecânica", page_icon=":material/build:",
 if "banco" not in st.session_state:
     st.session_state.banco = Banco()
 
+sessao.restaurar()
+
 # Sem login, o menu passa a ter só a página de login, escondido; sem isso o navegador
 # continuaria mostrando o menu anterior depois de clicar em Sair
 if "usuario" not in st.session_state:
     st.navigation([st.Page(login.mostrar, title="Entrar")], position="hidden").run()
+    sessao.executar_scripts()
     st.stop()
 
 from navegacao import ABRIR, ANDAMENTO, FATURAMENTO, FUNCIONARIOS, ORDENS
@@ -33,13 +37,29 @@ st.logo(Path(__file__).parent / "imagens" / "logo.svg", size="large", icon_image
 admin = st.session_state.get("admin", False)
 paginas = [ORDENS, ANDAMENTO, ABRIR] + ([FUNCIONARIOS, FATURAMENTO] if admin else [])
 pagina = st.navigation(paginas)
-with st.sidebar:
+# Rodapé da barra lateral: quem está conectado, Sair e a lua que alterna claro/escuro.
+# O CSS empurra o rodapé para o fim da barra
+st.html("""<style>
+[data-testid="stSidebarContent"] { display: flex; flex-direction: column; }
+[data-testid="stSidebarUserContent"] { flex: 1; display: flex; flex-direction: column; padding-bottom: 1.5rem; }
+[data-testid="stSidebarUserContent"] > div:first-child { flex: 1; }
+[data-testid="stSidebarUserContent"] > div:first-child > [data-testid="stVerticalBlock"] { height: 100%; }
+[data-testid="stLayoutWrapper"]:has(> .st-key-rodape_lateral) { margin-top: auto; }
+</style>""")
+with st.sidebar.container(key="rodape_lateral"):
     st.caption(f"Conectado como **{st.session_state.get('nome_usuario', st.session_state.usuario)}**")
-    if st.button("Sair", icon=":material/logout:", width="stretch"):
-        for chave in ("usuario", "id_funcionario", "nome_usuario", "admin"):
-            st.session_state.pop(chave, None)
+    sair, tema = st.columns([4, 1], vertical_alignment="center")
+    if sair.button("Sair", icon=":material/logout:", width="stretch"):
+        sessao.sair()
         st.rerun()
+    escuro = st.context.theme.type == "dark"
+    tema.button(
+        "", icon=":material/light_mode:" if escuro else ":material/dark_mode:",
+        help="Tema claro" if escuro else "Tema escuro", on_click=sessao.trocar_tema,
+    )
 
 if aviso := st.session_state.pop("aviso", None):
     st.toast(aviso, icon=":material/check_circle:")
 pagina.run()
+# No fim, para os scripts de cookie e tema não abrirem espaço no topo da página
+sessao.executar_scripts()

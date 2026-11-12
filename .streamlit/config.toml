@@ -2,11 +2,31 @@
 primaryColor = "#0078D4"
 baseRadius = "medium"
 
+# Tema claro e escuro; a lua na barra lateral alterna entre os dois
+[theme.light]
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F0F4F9"
+textColor = "#1A2433"
+
+[theme.dark]
+primaryColor = "#4DA3FF"
+backgroundColor = "#0E1621"
+secondaryBackgroundColor = "#1A2533"
+textColor = "#E8F0FA"
+
 [client]
+# Esconde o menu ⋮ do Streamlit
 toolbarMode = "minimal"
 
-# Barra lateral em azul escuro, com texto claro
-[theme.sidebar]
+# Barra lateral em azul escuro, com texto claro, nos dois temas
+[theme.light.sidebar]
+backgroundColor = "#0F2A4A"
+secondaryBackgroundColor = "#1C3D66"
+textColor = "#E8F0FA"
+primaryColor = "#4DA3FF"
+borderColor = "#2A4F7D"
+
+[theme.dark.sidebar]
 backgroundColor = "#0F2A4A"
 secondaryBackgroundColor = "#1C3D66"
 textColor = "#E8F0FA"

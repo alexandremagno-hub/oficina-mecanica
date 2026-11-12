@@ -1,5 +1,7 @@
 import streamlit as st
 
+import sessao
+
 # Página inicial de login, num cartão centralizado. As contas são os funcionários ativos
 def mostrar():
     _, centro, _ = st.columns([1, 1.2, 1])
@@ -16,9 +18,7 @@ def mostrar():
         if not usuario or not senha:
             st.error("Preencha todos os campos!")
         elif conta := st.session_state.banco.autenticar(usuario.strip().lower(), senha):
-            st.session_state.usuario = usuario.strip().lower()
-            (st.session_state.id_funcionario, st.session_state.nome_usuario,
-             st.session_state.admin) = conta
+            sessao.entrar(usuario.strip().lower(), conta)
             st.rerun()
         else:
             st.error("Usuário ou senha incorretos!")
