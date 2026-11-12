@@ -96,9 +96,9 @@ def alternar_detalhes(id_pedido):
     expandidas = st.session_state.setdefault("expandidas", set())
     expandidas.symmetric_difference_update({id_pedido})
 
-def selecionar(id_pedido):
+def selecionar(id_pedido, modo="editar"):
     st.session_state.selecao = id_pedido
-    st.session_state.modo_os = "editar"
+    st.session_state.modo_os = modo
 
 # Lista de OS com a coluna extra da linha principal (campo e formatação) e os detalhes;
 # devolve a OS selecionada (ou None)
@@ -128,10 +128,16 @@ def lista(visiveis, extra, detalhes):
                     coluna.caption(TITULOS[campo])
                     coluna.write(formatar(getattr(pedido, campo)))
                 st.caption(responsaveis(pedido._asdict()))
-                st.button(
-                    "Editar", key=f"editar_{id_pedido}", icon=":material/edit:",
-                    on_click=selecionar, args=(id_pedido,),
-                )
+                # Os botões com chave "excluir…" ficam vermelhos (CSS no app.py)
+                with st.container(horizontal=True):
+                    st.button(
+                        "Editar", key=f"editar_{id_pedido}", icon=":material/edit:",
+                        on_click=selecionar, args=(id_pedido,),
+                    )
+                    st.button(
+                        "Excluir", key=f"excluir_{id_pedido}", icon=":material/delete:",
+                        on_click=selecionar, args=(id_pedido, "excluir_direto"),
+                    )
     # A OS escolhida pode estar na outra lista ou ter sumido por causa da busca ou do filtro
     escolhida = visiveis[visiveis["id"] == st.session_state.get("selecao")]
     return escolhida.iloc[0] if not escolhida.empty else None
@@ -237,12 +243,17 @@ def confirmar_valores(id_pedido):
         st.session_state.pendente_os["mudancas"], voltar_valores, gravar_valores, (id_pedido,),
     )
 
-def confirmar_exclusao(id_pedido, nome, placa):
+# Cancelar volta para a edição ou, se a exclusão foi pedida direto da lista, fecha a janela
+def confirmar_exclusao(id_pedido, nome, placa, direto=False):
     st.write(f"Excluir a OS nº **{id_pedido}** de **{nome}** (placa {placa})?")
     st.caption("Essa ação não pode ser desfeita.")
     cancelar, excluir = st.columns(2)
-    cancelar.button("Cancelar", width="stretch", on_click=mudar_modo, args=("editar",))
-    if excluir.button("Excluir", type="primary", icon=":material/delete:", width="stretch"):
+    if direto:
+        cancelar.button("Cancelar", width="stretch", on_click=limpar_selecao)
+    else:
+        cancelar.button("Cancelar", width="stretch", on_click=mudar_modo, args=("editar",))
+    if excluir.button("Excluir", key="excluir_confirmar", icon=":material/delete:",
+                      width="stretch"):
         st.session_state.banco.excluir_pedido(id_pedido)
         limpar_selecao()
         avisar(f"OS nº {id_pedido} excluída!")
@@ -251,7 +262,7 @@ def confirmar_exclusao(id_pedido, nome, placa):
 def formulario_edicao(pedido, id_pedido):
     titulo, excluir = st.columns([4, 1], vertical_alignment="center")
     titulo.subheader(f"OS nº {id_pedido} · {pedido['nome']}")
-    excluir.button("Excluir", icon=":material/delete:", width="stretch",
+    excluir.button("Excluir", key="excluir_edicao", icon=":material/delete:", width="stretch",
                    on_click=mudar_modo, args=("excluir",))
     with st.form(f"form_{PREFIXO}", border=False):
         campos_pedido(PREFIXO)
@@ -290,6 +301,13 @@ def confirmacao(pedido):
         confirmar_dados(int(pedido["id"]))
     else:
         confirmar_valores(int(pedido["id"]))
+
+# Janela pequena para excluir a OS direto da lista, sem passar pela edição
+@st.dialog("Excluir ordem de serviço", on_dismiss=limpar_selecao)
+def exclusao(pedido):
+    if "selecao" not in st.session_state:
+        st.rerun()
+    confirmar_exclusao(int(pedido["id"]), pedido["nome"], pedido["placa"], direto=True)
 
 # Janela por cima da página com a edição da OS selecionada; fechá-la desfaz a seleção
 @st.dialog("Editar ordem de serviço", width="large", on_dismiss=limpar_selecao)
@@ -365,4 +383,9 @@ def mostrar():
     )
     pedido = pedido_aberto if pedido_aberto is not None else pedido_entregue
     if pedido is not None:
-        confirmacao(pedido) if confirmando() else painel(pedido)
+        if confirmando():
+            confirmacao(pedido)
+        elif st.session_state.get("modo_os") == "excluir_direto":
+            exclusao(pedido)
+        else:
+            painel(pedido)

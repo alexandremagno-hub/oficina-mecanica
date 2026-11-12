@@ -38,13 +38,17 @@ admin = st.session_state.get("admin", False)
 paginas = [ORDENS, ANDAMENTO, ABRIR] + ([FUNCIONARIOS, FATURAMENTO] if admin else [])
 pagina = st.navigation(paginas)
 # Rodapé da barra lateral: quem está conectado, Sair e a lua que alterna claro/escuro.
-# O CSS empurra o rodapé para o fim da barra
+# O CSS empurra o rodapé para o fim da barra e deixa os botões de excluir vermelhos
 st.html("""<style>
 [data-testid="stSidebarContent"] { display: flex; flex-direction: column; }
 [data-testid="stSidebarUserContent"] { flex: 1; display: flex; flex-direction: column; padding-bottom: 1.5rem; }
 [data-testid="stSidebarUserContent"] > div:first-child { flex: 1; }
 [data-testid="stSidebarUserContent"] > div:first-child > [data-testid="stVerticalBlock"] { height: 100%; }
 [data-testid="stLayoutWrapper"]:has(> .st-key-rodape_lateral) { margin-top: auto; }
+/* Botões de excluir (chave começando com "excluir") em vermelho, nos dois temas */
+[class*="st-key-excluir"] button { background-color: #D32F2F; border-color: #D32F2F; color: #FFFFFF; }
+[class*="st-key-excluir"] button:hover { background-color: #B71C1C; border-color: #B71C1C; color: #FFFFFF; }
+[class*="st-key-excluir"] button:active, [class*="st-key-excluir"] button:focus:not(:active) { color: #FFFFFF; }
 </style>""")
 with st.sidebar.container(key="rodape_lateral"):
     st.caption(f"Conectado como **{st.session_state.get('nome_usuario', st.session_state.usuario)}**")
