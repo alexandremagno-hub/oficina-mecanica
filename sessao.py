@@ -47,6 +47,14 @@ def sair():
     _script(f"document.cookie = {json.dumps(f'{COOKIE}=; path=/; max-age=0')};")
 
 
+# Esquece os logins guardados de um funcionário (ex.: ao excluí-lo), para o cookie dele não
+# refazer o acesso
+def encerrar_funcionario(id_funcionario):
+    sessoes = _sessoes()
+    for codigo in [c for c, dados in sessoes.items() if dados.get("id_funcionario") == id_funcionario]:
+        sessoes.pop(codigo, None)
+
+
 def trocar_tema():
     """Grava no navegador o tema oposto ao atual e recarrega a página para aplicá-lo."""
     novo = "Light" if st.context.theme.type == "dark" else "Dark"

@@ -50,7 +50,8 @@ concluida_por INTEGER REFERENCES funcionarios(id)
 )"""
 
 # Funcionários da oficina, que também são as contas de acesso ao sistema. A senha fica só
-# como hash; quem sai da oficina é desativado (ativo = 0) em vez de apagado. Administradores
+# como hash; quem sai da oficina pode ser desativado (ativo = 0), mantendo o nome nas OS, ou
+# excluído. Administradores
 # (admin = 1) acessam todas as páginas; os demais, só as de ordens de serviço
 ESQUEMA_FUNCIONARIOS = """CREATE TABLE IF NOT EXISTS funcionarios(
 id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
@@ -240,6 +241,21 @@ class Banco:
             self.cursor.execute("UPDATE funcionarios SET senha = ? WHERE id = ?",
                                 (gerar_hash(senha), id_funcionario))
         self.conexao.commit()
+
+    # Quantas OS o funcionário abriu ou concluiu
+    def contar_os_funcionario(self, id_funcionario):
+        self.cursor.execute("SELECT COUNT(*) FROM oficina WHERE aberta_por = :id OR concluida_por = :id",
+                            {"id": id_funcionario})
+        return self.cursor.fetchone()[0]
+
+    # Apagar o funcionário; as OS que ele abriu ou concluiu continuam, mas sem esse registro
+    def excluir_funcionario(self, id_funcionario):
+        with self.conexao:
+            self.cursor.execute("UPDATE oficina SET aberta_por = NULL WHERE aberta_por = ?",
+                                (id_funcionario,))
+            self.cursor.execute("UPDATE oficina SET concluida_por = NULL WHERE concluida_por = ?",
+                                (id_funcionario,))
+            self.cursor.execute("DELETE FROM funcionarios WHERE id = ?", (id_funcionario,))
 
     # Funcionários como tuplas na ordem de COLUNAS_FUNCIONARIOS, em ordem alfabética
     def listar_funcionarios(self):

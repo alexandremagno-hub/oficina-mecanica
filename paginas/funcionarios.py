@@ -4,6 +4,7 @@ from datetime import date
 import pandas as pd
 import streamlit as st
 
+import sessao
 from banco import COLUNAS_FUNCIONARIOS
 from formatos import formatar_nome, validar_funcionario, validar_senha
 from paginas.formulario import avisar, pergunta
@@ -154,6 +155,51 @@ def fechar_edicao(id_funcionario=None):
 def pendente(id_funcionario):
     return st.session_state.get(f"editar_func_pendente_{id_funcionario}")
 
+# Pedir a exclusão troca a janela de edição pela pequena de confirmação
+def pedir_exclusao(id_funcionario):
+    st.session_state.excluir_funcionario = id_funcionario
+
+# Cancelar a exclusão volta para a edição
+def cancelar_exclusao():
+    st.session_state.pop("excluir_funcionario", None)
+
+def excluir(funcionario):
+    id_funcionario = int(funcionario.id)
+    st.session_state.banco.excluir_funcionario(id_funcionario)
+    sessao.encerrar_funcionario(id_funcionario)
+    cancelar_exclusao()
+    fechar_edicao(id_funcionario)
+    avisar(f"{funcionario.nome} excluído!")
+
+# Fechar a janela de exclusão no X ou clicando fora desiste de tudo
+def descartar_exclusao():
+    cancelar_exclusao()
+    descartar_edicao()
+
+def excluindo(id_funcionario):
+    return st.session_state.get("excluir_funcionario") == id_funcionario
+
+@st.dialog("Excluir funcionário", on_dismiss=descartar_exclusao)
+def exclusao(funcionario):
+    id_funcionario = int(funcionario.id)
+    if st.session_state.pop("fechar_funcionario", False) or not excluindo(id_funcionario):
+        st.rerun()
+    st.markdown(f"Excluir **{funcionario.nome}** (usuário {funcionario.usuario})?",
+                text_alignment="center")
+    quantidade = st.session_state.banco.contar_os_funcionario(id_funcionario)
+    if quantidade:
+        st.warning(
+            f"{funcionario.nome} abriu ou concluiu {quantidade} OS. Elas continuam no sistema, "
+            "mas sem o nome de quem abriu ou concluiu, e saem do ranking da equipe. "
+            "Para manter esse histórico, desative o funcionário em vez de excluir.",
+            icon=":material/warning:",
+        )
+    st.caption("Essa ação não pode ser desfeita.")
+    cancelar, confirmar = st.columns(2)
+    cancelar.button("Cancelar", icon=":material/close:", width="stretch", on_click=cancelar_exclusao)
+    confirmar.button("Excluir", key="excluir_func_confirmar", icon=":material/delete:",
+                     width="stretch", on_click=excluir, args=(funcionario,))
+
 # Janela pequena, no meio da tela, que pergunta antes de gravar. Ao cancelar ou confirmar,
 # recarrega a página para voltar à edição ou fechar
 @st.dialog("Confirmar alteração", on_dismiss=descartar_edicao)
@@ -176,7 +222,7 @@ def formulario_edicao(funcionario):
     id_funcionario = int(funcionario.id)
     chave = lambda campo: f"editar_func_{campo}_{id_funcionario}"
     # Ao pedir a confirmação, recarrega a página para ela trocar esta janela pela pequena
-    if pendente(id_funcionario):
+    if pendente(id_funcionario) or excluindo(id_funcionario):
         st.rerun()
 
     # Valores iniciais pelo estado (e não por value=/index=), já que voltar_edicao também os define
@@ -191,8 +237,15 @@ def formulario_edicao(funcionario):
     # Quem está usando o sistema não pode se desativar, para não ficar sem acesso
     eu_mesmo = funcionario.usuario == st.session_state.get("usuario")
     funcoes = list(dict.fromkeys(FUNCOES + [funcionario.funcao, st.session_state[chave("funcao")]]))
+    # Os botões com chave "excluir…" ficam vermelhos (CSS no app.py)
+    titulo, botao_excluir = st.columns([4, 1], vertical_alignment="center")
+    titulo.subheader(funcionario.nome)
+    botao_excluir.button(
+        "Excluir", key=f"excluir_func_{id_funcionario}", icon=":material/delete:",
+        width="stretch", disabled=eu_mesmo, on_click=pedir_exclusao, args=(id_funcionario,),
+        help="Você não pode excluir a própria conta" if eu_mesmo else None,
+    )
     with st.form(f"editar_funcionario_{id_funcionario}", border=False):
-        st.subheader(funcionario.nome)
         st.caption(f"Usuário de acesso: **{funcionario.usuario}**")
         st.text_input("Nome", key=chave("nome"))
         funcao, admissao = st.columns(2)
@@ -250,7 +303,9 @@ def mostrar():
         st.caption(f"{ativos} ativos de {len(funcionarios)} · clique numa linha para editar")
         funcionario = tabela(funcionarios)
         if funcionario is not None:
-            if pendente(int(funcionario.id)):
+            if excluindo(int(funcionario.id)):
+                exclusao(funcionario)
+            elif pendente(int(funcionario.id)):
                 confirmacao(funcionario)
             else:
                 formulario_edicao(funcionario)
