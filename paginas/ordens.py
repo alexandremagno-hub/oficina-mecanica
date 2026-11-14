@@ -1,3 +1,5 @@
+from datetime import date
+
 import pandas as pd
 import streamlit as st
 
@@ -79,18 +81,82 @@ def resumo(pedidos):
 def formatar_valor(centavos):
     return formatar_reais(int(centavos)) if pd.notna(centavos) and centavos >= 0 else "—"
 
-# As duas listas têm o mesmo formato: a linha principal mostra o básico e a seta abre uma
-# segunda linha com o resto; DETALHES de cada lado diz o que aparece nessa segunda linha.
-# Na coluna "id" aparece a posição da OS na própria lista (1, 2, 3…), não o número da OS
+# As duas listas têm o mesmo formato: a linha principal mostra o básico e a seta abre os
+# detalhes logo abaixo. Na coluna "id" aparece a posição da OS na própria lista (1, 2, 3…),
+# não o número da OS (que aparece nos detalhes)
 RESUMIDAS = {"id": str, "nome": str, "veiculo": str, "placa": str}
-DETALHES_ABERTAS = {
-    "cpf": formatar_cpf, "servico": str, "valor": formatar_valor, "data_entrada": formatar_data,
-}
-DETALHES_ENTREGUES = {
-    "cpf": formatar_cpf, "servico": str, "data_entrada": formatar_data,
-    "data_entrega": formatar_data,
-}
 LARGURAS = [1, 3, 3, 2, 3, 1]
+
+# Dias entre duas datas ISO ("AAAA-MM-DD"); a segunda vazia conta até hoje. None sem a entrada
+def dias_entre(inicio, fim=""):
+    if not inicio:
+        return None
+    final = date.fromisoformat(fim) if fim else date.today()
+    return (final - date.fromisoformat(inicio)).days
+
+def texto_dias(dias):
+    return "hoje" if dias == 0 else "1 dia" if dias == 1 else f"{dias} dias"
+
+# Tempo da OS na oficina: até hoje para as em aberto, até a entrega para as entregues
+def tempo_na_oficina(pedido):
+    entregue = pedido["situacao"] == ENTREGUE
+    dias = dias_entre(pedido["data_entrada"], pedido["data_entrega"])
+    if dias is None or (entregue and not pedido["data_entrega"]):
+        return "—"
+    if entregue:
+        return f"entregue em {texto_dias(dias)}" if dias else "entregue no mesmo dia"
+    return "entrou hoje" if dias == 0 else f"há {texto_dias(dias)} na oficina"
+
+# Valores em uma linha: "Mão de obra R$ 150,00 · 3 peças R$ 85,00 · Total R$ 235,00"
+def linha_valores(pedido):
+    if pd.isna(pedido["valor"]):
+        return "Valores informados ao concluir o serviço"
+    mao_de_obra, pecas = valores_atuais(pedido)
+    quantidade = sum(q for _, q, _ in pecas)
+    total_pecas = sum(q * v for _, q, v in pecas)
+    partes = [f"Mão de obra R$ {formatar_reais(mao_de_obra or 0)}"]
+    if pecas:
+        rotulo = "1 peça" if quantidade == 1 else f"{quantidade} peças"
+        partes.append(f"{rotulo} R$ {formatar_reais(total_pecas)}")
+    partes.append(f"**Total R$ {formatar_reais(int(pedido['valor']))}**")
+    return " · ".join(partes)
+
+# Detalhes que a seta abre: número da OS, serviço por inteiro, cliente, datas, valores e
+# quem abriu/concluiu, seguidos dos botões de editar e excluir
+def detalhes(pedido):
+    id_pedido = int(pedido["id"])
+    st.divider()
+    st.markdown(
+        f"**OS nº {id_pedido}** &nbsp; {com_icone(pedido['situacao'])}  \n"
+        f":material/build: {pedido['servico']}"
+    )
+    cliente, datas = st.columns(2)
+    cliente.caption("Cliente")
+    cliente.markdown(
+        f":material/person: {pedido['nome']}  \n:material/badge: {formatar_cpf(pedido['cpf'])}"
+    )
+    datas.caption("Datas")
+    entrega = (
+        f"  \n:material/where_to_vote: Entrega {formatar_data(pedido['data_entrega'])}"
+        if pedido["data_entrega"] else ""
+    )
+    datas.markdown(
+        f":material/login: Entrada {formatar_data(pedido['data_entrada'])}{entrega}  \n"
+        f":material/schedule: {tempo_na_oficina(pedido)}"
+    )
+    st.caption("Valores")
+    st.markdown(f":material/payments: {linha_valores(pedido)}")
+    st.caption(f":material/engineering: {responsaveis(pedido)}")
+    # Os botões com chave "excluir…" ficam vermelhos (CSS no app.py)
+    with st.container(horizontal=True):
+        st.button(
+            "Editar", key=f"editar_{id_pedido}", icon=":material/edit:",
+            on_click=selecionar, args=(id_pedido,),
+        )
+        st.button(
+            "Excluir", key=f"excluir_{id_pedido}", icon=":material/delete:",
+            on_click=selecionar, args=(id_pedido, "excluir_direto"),
+        )
 
 def alternar_detalhes(id_pedido):
     expandidas = st.session_state.setdefault("expandidas", set())
@@ -100,9 +166,9 @@ def selecionar(id_pedido, modo="editar"):
     st.session_state.selecao = id_pedido
     st.session_state.modo_os = modo
 
-# Lista de OS com a coluna extra da linha principal (campo e formatação) e os detalhes;
-# devolve a OS selecionada (ou None)
-def lista(visiveis, extra, detalhes):
+# Lista de OS com a coluna extra da linha principal (campo e formatação); devolve a OS
+# selecionada (ou None)
+def lista(visiveis, extra):
     if visiveis.empty:
         st.info("Nenhuma OS aqui.", icon=":material/info:")
         return None
@@ -124,20 +190,7 @@ def lista(visiveis, extra, detalhes):
                 on_click=alternar_detalhes, args=(id_pedido,),
             )
             if aberta:
-                for coluna, (campo, formatar) in zip(st.columns(len(detalhes) + 1), detalhes.items()):
-                    coluna.caption(TITULOS[campo])
-                    coluna.write(formatar(getattr(pedido, campo)))
-                st.caption(responsaveis(pedido._asdict()))
-                # Os botões com chave "excluir…" ficam vermelhos (CSS no app.py)
-                with st.container(horizontal=True):
-                    st.button(
-                        "Editar", key=f"editar_{id_pedido}", icon=":material/edit:",
-                        on_click=selecionar, args=(id_pedido,),
-                    )
-                    st.button(
-                        "Excluir", key=f"excluir_{id_pedido}", icon=":material/delete:",
-                        on_click=selecionar, args=(id_pedido, "excluir_direto"),
-                    )
+                detalhes(pedido._asdict())
     # A OS escolhida pode estar na outra lista ou ter sumido por causa da busca ou do filtro
     escolhida = visiveis[visiveis["id"] == st.session_state.get("selecao")]
     return escolhida.iloc[0] if not escolhida.empty else None
@@ -369,14 +422,10 @@ def mostrar():
     esquerda, direita = st.columns(2)
     with esquerda:
         st.subheader("Em aberto")
-        pedido_aberto = lista(
-            visiveis[~entregues], ("situacao", com_icone), DETALHES_ABERTAS,
-        )
+        pedido_aberto = lista(visiveis[~entregues], ("situacao", com_icone))
     with direita:
         st.subheader("Entregues" if st.session_state.get("admin", False) else "Minhas entregas")
-        pedido_entregue = lista(
-            visiveis[entregues], ("valor", formatar_valor), DETALHES_ENTREGUES,
-        )
+        pedido_entregue = lista(visiveis[entregues], ("valor", formatar_valor))
     st.caption(
         f"{len(visiveis)} de {len(pedidos)} OS · use a seta para ver os detalhes "
         "e editar ou excluir uma OS"
