@@ -124,7 +124,36 @@ def escolher_mes(entregues):
         format_func=nome_mes, key="mes_dashboard",
     )
 
-# Destaque para quem mais entregou no mês escolhido e o ranking de toda a equipe
+def plural_entregas(quantidade):
+    return "1 entrega" if quantidade == 1 else f"{quantidade} entregas"
+
+# Entregas, faturamento e ticket médio do funcionário, igual nos dois cartões de destaque
+def resumo_funcionario(lider):
+    entregas = int(lider["entregas"])
+    return (f"{plural_entregas(entregas)} · faturou {reais(lider['faturado'])} · "
+            f"ticket médio {reais(lider['faturado'] // entregas)}")
+
+# Cartão com o líder de um critério (campo principal, com o outro como desempate). Diz se houve
+# empate e mostra a parte do funcionário no total da equipe
+def destaque(coluna, ranking, titulo, icone, campo, desempate, formatar):
+    ordenado = ranking.sort_values([campo, desempate], ascending=False)
+    lider = ordenado.iloc[0]
+    empatados = ordenado[ordenado[campo] == lider[campo]]
+    total = ranking[campo].sum()
+    with coluna.container(border=True, height="stretch"):
+        st.caption(f":material/{icone}: {titulo}")
+        st.markdown(f"#### :material/emoji_events: {lider['nome_conclusao']}")
+        st.metric(
+            titulo, formatar(lider[campo]), label_visibility="collapsed",
+            help=f"{lider[campo] / total:.0%} do total da equipe" if total else None,
+        )
+        st.caption(resumo_funcionario(lider))
+        if len(empatados) > 1:
+            outros = ", ".join(empatados["nome_conclusao"].iloc[1:])
+            criterio = "faturou mais" if desempate == "faturado" else "entregou mais"
+            st.caption(f"Empatado com {outros}; fica à frente quem {criterio}")
+
+# Destaques do mês escolhido (quem mais entregou e quem mais faturou) e o ranking da equipe
 def desempenho(entregues, mes):
     ranking = ranking_equipe(entregues)
     sem_registro = len(entregues) - int(ranking["entregas"].sum())
@@ -133,23 +162,16 @@ def desempenho(entregues, mes):
                 icon=":material/info:")
         return
 
-    melhor = ranking.iloc[0]
-    empatados = ranking[ranking["entregas"] == melhor["entregas"]]
-    with st.container(border=True):
-        titulo = ("Destaque do período" if mes == TODOS_MESES
-                  else f"Destaque de {nome_mes(mes)}")
-        st.markdown(f"#### :material/emoji_events: {titulo}: {melhor['nome_conclusao']}")
-        if len(empatados) > 1:
-            outros = ", ".join(empatados["nome_conclusao"].iloc[1:])
-            st.caption(f"Empatado em entregas com {outros}; fica à frente quem faturou mais")
-        entregas, faturado, mao, ticket = st.columns(4)
-        entregas.metric(
-            "Entregas", int(melhor["entregas"]),
-            help=f"{melhor['entregas'] / ranking['entregas'].sum():.0%} das entregas da equipe",
-        )
-        faturado.metric("Faturamento", reais(melhor["faturado"]))
-        mao.metric("Mão de obra", reais(melhor["mao"]))
-        ticket.metric("Ticket médio", reais(melhor["faturado"] // melhor["entregas"]))
+    periodo = "do período" if mes == TODOS_MESES else f"de {nome_mes(mes)}"
+    entregas, faturamento = st.columns(2)
+    destaque(
+        entregas, ranking, f"Mais entregas {periodo}", "local_shipping", "entregas", "faturado",
+        plural_entregas,
+    )
+    destaque(
+        faturamento, ranking, f"Maior faturamento {periodo}", "payments", "faturado", "entregas",
+        reais,
+    )
 
     st.dataframe(
         pd.DataFrame({
